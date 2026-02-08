@@ -1,0 +1,12 @@
+pipeline_agent:
+  target: dev
+  outputs:
+    dev:
+      type: postgres
+      host: "{{ env_var('POSTGRES_HOST', 'localhost') }}"
+      port: "{{ env_var('POSTGRES_PORT', '5432') | int }}"
+      user: "{{ env_var('POSTGRES_USER', 'pipeline_admin') }}"
+      password: "{{ env_var('POSTGRES_PASSWORD', 'hackathon2026') }}"
+      dbname: "{{ env_var('POSTGRES_DB', 'pipeline_agent') }}"
+      schema: public
+      threads: 4

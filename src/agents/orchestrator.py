@@ -60,7 +60,7 @@ class PipelineOrchestrator:
         }
 
         # Step 1: Health check
-        print("🔍 Running pipeline health check...")
+        print("[MONITOR] Running pipeline health check...")
         health_result = run_health_check()
         results["health_check"] = health_result
         print(f"   Health check complete.")
@@ -72,13 +72,13 @@ class PipelineOrchestrator:
         result = {"alert": alert, "diagnosis": None, "fix_proposal": None}
 
         # Step 1: Diagnose
-        print(f"🔬 Diagnosing: {alert.get('pipeline_name', 'unknown')}...")
+        print(f"[DIAGNOSTICS] Diagnosing: {alert.get('pipeline_name', 'unknown')}...")
         diagnosis = diagnose_alert(alert)
         result["diagnosis"] = diagnosis
         print(f"   Diagnosis complete.")
 
         # Step 2: Propose fix
-        print(f"🔧 Generating fix proposal...")
+        print(f"[REPAIR] Generating fix proposal...")
         fix = propose_fix(
             {
                 "root_cause": diagnosis,
@@ -113,7 +113,7 @@ class PipelineOrchestrator:
             tools=ALL_TOOLS,
         )
 
-        print("\n🤖 Agentic Pipeline Repair")
+        print("\nAgentic Pipeline Repair")
         print("=" * 50)
         print("I can help you monitor, diagnose, and fix pipeline issues.")
         print("Type 'quit' to exit, 'check' for a full health scan.\n")
@@ -125,11 +125,12 @@ class PipelineOrchestrator:
                 break
             if user_input.lower() == "check":
                 user_input = """Run a comprehensive health check on all pipelines:
-                    1. Check pipeline status for failures, SLA breaches, or stuck runs.
-                    2. Use get_monitored_tables to discover tracked tables, then check each for schema drift.
-                    3. Use get_pipelines_with_quality_checks to discover which pipelines have quality checks, then check results for EACH one. Pipelines can show 'success' but still have FAILING quality checks.
-                    4. Report ALL issues found including quality check failures."""
-            print("\n🤖 Thinking...\n")
+1. Check pipeline status for failures, SLA breaches, or stuck runs.
+2. Use get_monitored_tables to discover tracked tables, then check each for schema drift.
+3. Use get_pipelines_with_quality_checks to discover which pipelines have quality checks, then check results for EACH one. Pipelines can show 'success' but still have FAILING quality checks.
+4. Report ALL issues found including quality check failures."""
+
+            print("\nThinking...\n")
             response = agent(user_input)
             print(f"\nAgent: {response}\n")
 

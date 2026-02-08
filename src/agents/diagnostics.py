@@ -16,6 +16,8 @@ from src.mcp_server.tools import (
     get_quality_checks,
     execute_diagnostic_sql,
     log_agent_action,
+    list_dbt_models,
+    get_dbt_model_sql,
 )
 
 DIAGNOSTICS_SYSTEM_PROMPT = """You are the Diagnostics Agent for Agentic Pipeline Repair. When the Monitor Agent
@@ -25,22 +27,24 @@ Your approach:
 1. UNDERSTAND the alert: What pipeline failed? What type of failure?
 2. TRACE upstream: Use the pipeline DAG to check if upstream dependencies failed first.
    The root cause is often an upstream failure cascading downstream.
-3. INVESTIGATE: Use diagnostic SQL queries to examine the actual data:
+3. READ the dbt model: Use get_dbt_model_sql to read the actual SQL transformation
+   for the failing pipeline. Understand what columns and tables it references.
+4. INVESTIGATE: Use diagnostic SQL queries to examine the actual data:
    - Check for null values, duplicates, or unexpected values
    - Compare recent data patterns to historical patterns
    - Look at schema changes that might have broken transformations
-4. REASON: Think step-by-step about what could cause this specific failure.
+5. REASON: Think step-by-step about what could cause this specific failure.
    Consider: schema drift, data quality issues, source system changes,
    volume spikes, timing issues, query performance degradation.
-5. DIAGNOSE: Provide a clear root cause diagnosis with:
+6. DIAGNOSE: Provide a clear root cause diagnosis with:
    - root_cause: what actually went wrong
    - affected_pipelines: list of all impacted pipelines (not just the one that errored)
    - evidence: specific data points supporting your diagnosis
    - confidence: how confident you are (0.0 to 1.0)
    - recommended_fix: what the Repair Agent should do
 
-Always start by checking the dependency graph. A downstream failure
-is often just a symptom of an upstream problem.
+Always start by checking the dependency graph and reading the dbt model SQL.
+A downstream failure is often just a symptom of an upstream problem.
 
 Log your diagnosis using log_agent_action with agent_name='diagnostics'.
 """
@@ -70,6 +74,8 @@ def create_diagnostics_agent() -> Agent:
             get_quality_checks,
             execute_diagnostic_sql,
             log_agent_action,
+            list_dbt_models,
+            get_dbt_model_sql,
         ],
     )
 

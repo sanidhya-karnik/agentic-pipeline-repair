@@ -1,0 +1,36 @@
+version: 2
+
+models:
+  - name: stg_customers
+    description: Cleaned customer data with standardized names and emails
+    columns:
+      - name: customer_id
+        tests: [unique, not_null]
+      - name: email
+        tests: [unique, not_null]
+
+  - name: stg_orders
+    description: Cleaned order data with standardized amounts
+    columns:
+      - name: order_id
+        tests: [unique, not_null]
+      - name: customer_id
+        tests: [not_null]
+      - name: total_amount
+        tests: [not_null]
+
+  - name: stg_order_items
+    description: Cleaned order line items with computed line totals
+    columns:
+      - name: item_id
+        tests: [unique, not_null]
+      - name: line_total
+        tests: [not_null]
+
+  - name: stg_products
+    description: Cleaned product catalog with computed margins
+    columns:
+      - name: product_id
+        tests: [unique, not_null]
+      - name: price
+        tests: [not_null]

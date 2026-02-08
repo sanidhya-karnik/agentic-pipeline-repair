@@ -20,8 +20,8 @@ sqlalchemy>=2.0.0
 # Data
 pandas>=2.2.0
 
-# dbt (install separately: pip install dbt-postgres)
-# dbt-postgres>=1.8.0
+# dbt
+dbt-postgres>=1.8.0
 
 # Utilities
 pydantic>=2.0.0

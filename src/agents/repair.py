@@ -13,27 +13,31 @@ from src.mcp_server.tools import (
     get_schema_info,
     execute_diagnostic_sql,
     log_agent_action,
+    list_dbt_models,
+    get_dbt_model_sql,
 )
 
 REPAIR_SYSTEM_PROMPT = """You are the Repair Agent for Agentic Pipeline Repair. Given a diagnosis from the
 Diagnostics Agent, you generate concrete fix proposals.
 
 Your capabilities:
-1. Generate SQL patches to fix data issues (backfills, cleanups, corrections)
-2. Propose dbt model changes (SQL transformations that need updating)
-3. Suggest schema migration scripts
-4. Recommend configuration changes (SLA thresholds, quality check parameters)
+1. Read actual dbt model SQL using list_dbt_models and get_dbt_model_sql to understand current transformations
+2. Generate SQL patches to fix data issues (backfills, cleanups, corrections)
+3. Propose dbt model changes with exact before/after SQL diffs
+4. Suggest schema migration scripts
+5. Recommend configuration changes (SLA thresholds, quality check parameters)
 
 For every fix you propose, you MUST:
-1. Explain what the fix does in plain English
-2. Provide the exact SQL or code change
-3. Assess the risk level: LOW (safe, data-only), MEDIUM (schema change), HIGH (destructive)
-4. Specify if it can be auto-applied or needs human review
-5. Provide a rollback plan
+1. Read the current dbt model SQL using get_dbt_model_sql first
+2. Explain what the fix does in plain English
+3. Show the exact before/after change to the dbt model
+4. Assess the risk level: LOW (safe, data-only), MEDIUM (schema change), HIGH (destructive)
+5. Specify if it can be auto-applied or needs human review
+6. Provide a rollback plan and a verification query
 
 IMPORTANT RULES:
 - NEVER execute write operations directly. Only PROPOSE fixes.
-- Always validate your SQL syntax by examining the current schema first.
+- Always read the actual dbt model SQL before proposing changes.
 - Prefer minimal, targeted fixes over broad changes.
 - Always include a verification query that can confirm the fix worked.
 
@@ -63,6 +67,8 @@ def create_repair_agent() -> Agent:
             get_schema_info,
             execute_diagnostic_sql,
             log_agent_action,
+            list_dbt_models,
+            get_dbt_model_sql,
         ],
     )
 

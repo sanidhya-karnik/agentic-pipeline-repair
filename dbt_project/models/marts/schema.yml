@@ -1,0 +1,26 @@
+version: 2
+
+models:
+  - name: mart_customer_orders
+    description: Customer-level order summary with lifetime metrics
+    columns:
+      - name: customer_id
+        tests: [unique, not_null]
+      - name: lifetime_revenue
+        tests: [not_null]
+
+  - name: mart_revenue_daily
+    description: Daily revenue aggregation with cost and profit metrics
+    columns:
+      - name: revenue_date
+        tests: [unique, not_null]
+      - name: gross_revenue
+        tests: [not_null]
+
+  - name: mart_product_performance
+    description: Product-level sales and profitability metrics
+    columns:
+      - name: product_id
+        tests: [unique, not_null]
+      - name: total_revenue
+        tests: [not_null]

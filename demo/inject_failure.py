@@ -16,7 +16,7 @@ from src.config.db import execute_query, execute_write
 
 def inject_schema_drift():
     """Scenario 1: Add an unexpected column to raw.orders, simulating upstream schema change."""
-    print("💥 Injecting schema drift: Adding 'discount_amount' column to raw.orders...")
+    print("[INJECT] Schema drift: Adding 'discount_amount' column to raw.orders...")
 
     # Add new column
     execute_write("""
@@ -59,13 +59,13 @@ def inject_schema_drift():
         );
     """)
 
-    print("   ✅ Schema drift injected. raw.orders now has 'discount_amount' column.")
-    print("   ✅ stg_orders and mart_revenue_daily marked as FAILED.")
+    print("   Done. raw.orders now has 'discount_amount' column.")
+    print("   Done. stg_orders and mart_revenue_daily marked as FAILED.")
 
 
 def inject_data_quality_issue():
     """Scenario 2: Inject nulls into critical fields."""
-    print("💥 Injecting data quality issue: Setting NULL total_amount on recent orders...")
+    print("[INJECT] Data quality issue: Setting NULL total_amount on recent orders...")
 
     # Null out some order amounts
     execute_write("""
@@ -106,13 +106,13 @@ def inject_data_quality_issue():
         );
     """)
 
-    print("   ✅ 75 orders now have NULL total_amount (15% null rate, threshold is 5%).")
-    print("   ✅ Data quality check recorded as FAILED.")
+    print("   Done. 75 orders now have NULL total_amount (15% null rate, threshold is 5%).")
+    print("   Done. Data quality check recorded as FAILED.")
 
 
 def inject_sla_breach():
     """Scenario 3: Simulate a pipeline running way over SLA."""
-    print("💥 Injecting SLA breach: mart_customer_orders running 3x over SLA...")
+    print("[INJECT] SLA breach: mart_customer_orders running 3x over SLA...")
 
     execute_write("""
         INSERT INTO pipeline_meta.pipeline_runs
@@ -127,12 +127,12 @@ def inject_sla_breach():
         );
     """)
 
-    print("   ✅ mart_customer_orders has been 'running' for 65 min (SLA: 20 min).")
+    print("   Done. mart_customer_orders has been 'running' for 65 min (SLA: 20 min).")
 
 
 def reset_demo():
     """Reset all injected failures back to clean state."""
-    print("🧹 Resetting demo state...")
+    print("[RESET] Resetting demo state...")
 
     # Remove added column
     execute_write("ALTER TABLE raw.orders DROP COLUMN IF EXISTS discount_amount;")
@@ -171,7 +171,7 @@ def reset_demo():
         ORDER BY table_schema, table_name, ordinal_position;
     """)
 
-    print("   ✅ Demo state reset to clean.")
+    print("   Done. Demo state reset to clean.")
 
 
 if __name__ == "__main__":

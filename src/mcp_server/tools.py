@@ -5,18 +5,24 @@ Tools:
 - get_pipeline_status: Current state of all pipelines
 - get_pipeline_dag: Dependency graph for a pipeline
 - get_run_history: Recent run history for a pipeline
-- get_dbt_model_sql: Fetch dbt model SQL
 - get_schema_info: Table schemas and column stats
 - get_quality_checks: Data quality check results
+- list_dbt_models: Discover all dbt models
+- get_dbt_model_sql: Read dbt model SQL source code
+- get_monitored_tables: Discover tables tracked for schema drift
+- get_pipelines_with_quality_checks: Discover pipelines with quality checks
 - execute_diagnostic_sql: Run read-only diagnostic queries
 - log_agent_action: Record an agent action
 """
 
 import json
+import os
 from datetime import datetime, timedelta
 from typing import Any
 from strands import tool
 from src.config.db import execute_query, execute_write
+
+DBT_PROJECT_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "dbt_project")
 
 
 @tool
@@ -278,6 +284,56 @@ def log_agent_action(
 
 
 @tool
+def list_dbt_models() -> str:
+    """List all available dbt models with their file paths and categories (staging/marts).
+    Use this to discover what dbt models exist in the project."""
+    models = []
+    models_dir = os.path.join(DBT_PROJECT_PATH, "models")
+    if not os.path.exists(models_dir):
+        return json.dumps({"error": f"dbt models directory not found at {models_dir}"})
+
+    for root, dirs, files in os.walk(models_dir):
+        for f in files:
+            if f.endswith(".sql"):
+                rel_path = os.path.relpath(os.path.join(root, f), DBT_PROJECT_PATH)
+                category = os.path.basename(root)
+                models.append({
+                    "model_name": f.replace(".sql", ""),
+                    "category": category,
+                    "path": rel_path,
+                })
+    return json.dumps(models, indent=2)
+
+
+@tool
+def get_dbt_model_sql(model_name: str) -> str:
+    """Read the SQL source code of a dbt model. Returns the full SQL including
+    Jinja references like {{ source() }} and {{ ref() }}.
+    Use this to understand what a pipeline transformation does and to propose fixes.
+
+    Args:
+        model_name: Name of the dbt model (e.g., 'stg_orders', 'mart_revenue_daily').
+    """
+    models_dir = os.path.join(DBT_PROJECT_PATH, "models")
+    if not os.path.exists(models_dir):
+        return json.dumps({"error": "dbt models directory not found"})
+
+    for root, dirs, files in os.walk(models_dir):
+        for f in files:
+            if f == f"{model_name}.sql":
+                filepath = os.path.join(root, f)
+                with open(filepath, "r") as fh:
+                    sql_content = fh.read()
+                return json.dumps({
+                    "model_name": model_name,
+                    "path": os.path.relpath(filepath, DBT_PROJECT_PATH),
+                    "sql": sql_content,
+                }, indent=2)
+
+    return json.dumps({"error": f"Model '{model_name}' not found in dbt project"})
+
+
+@tool
 def get_monitored_tables() -> str:
     """Get all tables that have schema snapshots for drift monitoring.
     Returns the list of tables being tracked for schema changes."""
@@ -317,6 +373,8 @@ ALL_TOOLS = [
     get_quality_checks,
     execute_diagnostic_sql,
     log_agent_action,
+    list_dbt_models,
+    get_dbt_model_sql,
     get_monitored_tables,
     get_pipelines_with_quality_checks,
 ]
