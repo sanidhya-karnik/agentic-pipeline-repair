@@ -1,0 +1,29 @@
+# Agent Framework
+strands-agents>=0.1.0
+strands-agents-tools>=0.1.0
+
+# AWS
+boto3>=1.35.0
+
+# MCP
+mcp>=1.0.0
+
+# API
+fastapi>=0.115.0
+uvicorn>=0.32.0
+python-dotenv>=1.0.0
+
+# Database
+psycopg2-binary>=2.9.0
+sqlalchemy>=2.0.0
+
+# Data
+pandas>=2.2.0
+
+# dbt (install separately: pip install dbt-postgres)
+# dbt-postgres>=1.8.0
+
+# Utilities
+pydantic>=2.0.0
+structlog>=24.0.0
+rich>=13.0.0
