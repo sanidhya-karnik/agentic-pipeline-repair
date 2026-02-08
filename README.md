@@ -51,7 +51,7 @@ An autonomous multi-agent system that monitors, diagnoses, and repairs data pipe
 
 ### 1. Clone and configure
 ```bash
-git clone <repo-url>
+git clone https://github.com/sanidhya-karnik/agentic-pipeline-repair
 cd agentic-pipeline-repair
 cp .env.example .env
 # Edit .env with your AWS credentials
