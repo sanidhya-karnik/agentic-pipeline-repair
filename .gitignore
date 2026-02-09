@@ -30,3 +30,8 @@ dbt_project/logs/
 
 # Test files
 test.json
+
+# Deploy artifacts
+*.pem
+deploy/aws_config.txt
+server.log
