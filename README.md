@@ -1,62 +1,82 @@
 # Agentic Pipeline Repair
 
-An autonomous multi-agent system that monitors, diagnoses, and repairs data pipeline failures using Amazon Nova 2 Lite's reasoning capabilities on Amazon Bedrock.
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![Amazon Nova](https://img.shields.io/badge/Amazon%20Nova-2%20Lite-FF9900?logo=amazonaws&logoColor=white)](https://aws.amazon.com/bedrock/)
+[![Amazon Bedrock](https://img.shields.io/badge/Amazon%20Bedrock-232F3E?logo=amazonaws&logoColor=white)](https://aws.amazon.com/bedrock/)
+[![Strands Agents](https://img.shields.io/badge/Strands%20Agents-SDK-00C7B7)](https://github.com/strands-agents/sdk-python)
+[![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+[![dbt](https://img.shields.io/badge/dbt-FF694B?logo=dbt&logoColor=white)](https://www.getdbt.com/)
+[![Docker](https://img.shields.io/badge/Docker-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
+[![React](https://img.shields.io/badge/React-61DAFB?logo=react&logoColor=black)](https://react.dev/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+An autonomous multi-agent system that monitors, diagnoses, and repairs data pipeline failures using Amazon Nova 2 Lite's extended reasoning capabilities on Amazon Bedrock.
 
 **Amazon Nova AI Hackathon 2026 | Category: Agentic AI**
+
+## How It Works
+
+A single `check` command triggers a multi-agent workflow that automatically detects failures, traces root causes through the pipeline DAG, reads actual dbt model SQL, and proposes exact code fixes with human-in-the-loop approval.
+
+1. **Monitor Agent** scans all pipelines for failures, SLA breaches, schema drift, and data quality violations. It dynamically discovers what to check from the database at runtime.
+
+2. **Diagnostics Agent** uses Nova 2 Lite's extended thinking (high intensity) to perform root cause analysis. It traces the pipeline DAG upstream, reads dbt model SQL, examines run logs, and runs diagnostic queries to build evidence.
+
+3. **Repair Agent** reads the actual dbt model source code, then generates concrete fix proposals showing exact before/after SQL diffs. All fixes require human approval before application.
+
+4. **Orchestrator Agent** coordinates the full workflow and provides both an interactive CLI and a REST API for users to ask questions and approve fixes.
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────┐
-│         FastAPI Gateway             │
-│        (Dashboard + API)            │
-└─────────────────┬───────────────────┘
-                  │
-       ┌──────────▼──────────┐
-       │  Orchestrator Agent │
-       │  (Strands SDK)      │
-       └─┬──────┬────────┬───┘
-         │      │        │
-       ┌─▼─┐ ┌──▼──┐ ┌───▼───┐
-       │Mon│ │Diag │ │Repair │
-       └──┬┘ └──┬──┘ └───┬───┘
-          │     │        │
-       ┌──▼─────▼────────▼───┐
-       │  Amazon Bedrock     │
-       │  Nova 2 Lite        │
-       └─────────────────────┘
-                 │
-       ┌─────────▼───────────┐
-       │  PostgreSQL + dbt   │
-       │  (Pipeline Infra)   │
-       └─────────────────────┘
++-----------------------------------+
+|         FastAPI Gateway            |
+|     (Dashboard + REST API)         |
++-----------------+-----------------+
+                  |
++-----------------v-----------------+
+|       Orchestrator Agent           |
+|       (Strands Agents SDK)         |
++-----+----------+----------+------+
+      |          |          |
++-----v----+ +--v-------+ +v----------+
+|  Monitor  | |Diagnostics| |  Repair   |
+|  Agent    | |  Agent    | |  Agent    |
++-----+----+ +--+-------+ +-+----------+
+      |          |          |
++-----v----------v----------v------+
+|         Amazon Bedrock             |
+|    Nova 2 Lite (Extended Thinking) |
++-----------------+-----------------+
+                  |
++-----------------v-----------------+
+|           PostgreSQL               |
+|   (Pipeline Metadata + dbt Models) |
++-----------------------------------+
 ```
 
-## Tech Stack
+## Dashboard
 
-- **LLM**: Amazon Nova 2 Lite via Amazon Bedrock (extended thinking)
-- **Agent Framework**: Strands Agents SDK
-- **Tool Protocol**: MCP (Model Context Protocol)
-- **Backend**: FastAPI
-- **Database**: PostgreSQL
-- **Data Transforms**: dbt (dbt-postgres)
-- **Infrastructure**: Docker Compose
+The React dashboard provides real-time visibility into pipeline health, the DAG topology with color-coded status, and an agent activity feed showing all Monitor/Diagnostics/Repair actions. A built-in chat interface allows direct interaction with the Orchestrator Agent from the browser.
 
 ## Agent Tools (11 total)
 
 The agents interact with pipeline infrastructure through these tools:
 
-- **get_pipeline_status** - Current state of all pipelines with SLA tracking
-- **get_pipeline_dag** - Dependency graph (upstream/downstream) for any pipeline
-- **get_run_history** - Recent run history with status, duration, errors
-- **get_schema_info** - Table schemas with drift detection against snapshots
-- **get_quality_checks** - Data quality check definitions and latest results
-- **list_dbt_models** - Discover all dbt models in the project with categories
-- **get_dbt_model_sql** - Read actual dbt model SQL so agents can understand and propose fixes
-- **get_monitored_tables** - Dynamically discover all tables tracked for schema drift
-- **get_pipelines_with_quality_checks** - Dynamically discover pipelines with quality checks
-- **execute_diagnostic_sql** - Run read-only SQL queries for investigation
-- **log_agent_action** - Record agent actions for audit trail
+| Tool | Description |
+|------|-------------|
+| `get_pipeline_status` | Current state of all pipelines with SLA tracking |
+| `get_pipeline_dag` | Dependency graph (upstream/downstream) for any pipeline |
+| `get_run_history` | Recent run history with status, duration, errors |
+| `get_schema_info` | Table schemas with drift detection against snapshots |
+| `get_quality_checks` | Data quality check definitions and latest results |
+| `list_dbt_models` | Discover all dbt models in the project with categories |
+| `get_dbt_model_sql` | Read actual dbt model SQL to understand and propose fixes |
+| `get_monitored_tables` | Dynamically discover all tables tracked for schema drift |
+| `get_pipelines_with_quality_checks` | Dynamically discover pipelines with quality checks |
+| `execute_diagnostic_sql` | Run read-only SQL queries for investigation |
+| `log_agent_action` | Record agent actions for audit trail |
 
 Agents discover what to monitor at runtime using `get_monitored_tables` and `get_pipelines_with_quality_checks`, making the system work with any dataset without code changes.
 
@@ -69,7 +89,7 @@ Agents discover what to monitor at runtime using `get_monitored_tables` and `get
 
 ### 1. Clone and configure
 ```bash
-git clone <repo-url>
+git clone https://github.com/sanidhya-karnik/agentic-pipeline-repair.git
 cd agentic-pipeline-repair
 cp .env.example .env
 # Edit .env with your AWS credentials and region
@@ -96,22 +116,20 @@ dbt run --profiles-dir .
 cd ..
 ```
 
-### 5. Run the interactive agent
-```bash
-python -m src.agents.orchestrator
-```
-
-### 6. Try a health check
-Type `check` at the prompt to run a full pipeline scan, or ask natural language questions like:
-- "Why did mart_revenue_daily fail?"
-- "Check data quality for stg_orders"
-- "Propose a fix for the schema drift issue"
-
-### 7. (Optional) Start the REST API
+### 5. Start the dashboard and API
 ```bash
 uvicorn src.api.main:app --reload --port 8000
 ```
-API docs available at http://localhost:8000/docs
+Open http://localhost:8000 for the dashboard, or http://localhost:8000/docs for the API documentation.
+
+### 6. Run the interactive CLI agent
+```bash
+python -m src.agents.orchestrator
+```
+Type `check` for a full health scan, or ask natural language questions like:
+- "Why did mart_revenue_daily fail?"
+- "Check data quality for stg_orders"
+- "Read the stg_orders dbt model and propose the exact fix needed"
 
 ## Demo Scenarios
 
@@ -134,15 +152,9 @@ python -m demo.inject_failure --scenario all
 python -m demo.inject_failure --scenario reset
 ```
 
-## How It Works
+## Cloud Deployment
 
-1. **Monitor Agent** scans all pipelines for failures, SLA breaches, schema drift, and data quality violations. It dynamically discovers what to check from the database.
-
-2. **Diagnostics Agent** uses Nova 2 Lite's extended thinking (high intensity) to perform root cause analysis. It traces the pipeline DAG upstream, examines run logs, and runs diagnostic SQL to build evidence.
-
-3. **Repair Agent** generates concrete fix proposals: SQL patches, dbt model changes, and configuration updates. All fixes require human approval before application.
-
-4. **Orchestrator Agent** coordinates the workflow and provides an interactive interface for users to ask questions and approve fixes.
+The project can be deployed to AWS using RDS PostgreSQL and EC2. See [deploy/DEPLOY.md](deploy/DEPLOY.md) for full instructions.
 
 ## Project Structure
 
@@ -161,16 +173,23 @@ agentic-pipeline-repair/
 │   ├── mcp_server/
 │   │   └── tools.py          # 11 MCP tools for pipeline interaction
 │   ├── api/
-│   │   └── main.py           # FastAPI REST endpoints
+│   │   └── main.py           # FastAPI REST endpoints + dashboard
 │   └── config/
 │       ├── settings.py       # Environment-based configuration
 │       └── db.py             # PostgreSQL query utilities
+├── dashboard/
+│   └── index.html            # React dashboard (pipeline DAG, agent feed, chat)
 ├── dbt_project/
 │   ├── dbt_project.yml       # dbt configuration
 │   ├── profiles.yml          # Database connection profile
 │   └── models/
 │       ├── staging/          # Staging models (stg_customers, stg_orders, etc.)
 │       └── marts/            # Mart models (customer_orders, revenue, product perf.)
+├── deploy/
+│   ├── DEPLOY.md             # Cloud deployment guide
+│   ├── setup_aws.sh          # Automated AWS setup script
+│   ├── teardown_aws.sh       # Resource cleanup script
+│   └── ec2_configure.sh      # EC2 instance configuration
 ├── data/
 │   └── sql/
 │       └── init.sql          # Database schema + seed data
@@ -182,6 +201,7 @@ agentic-pipeline-repair/
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
+| GET | / | React dashboard |
 | GET | /health | App health check |
 | GET | /pipelines | List all pipelines with status |
 | GET | /pipelines/{name} | Pipeline detail with run history |
