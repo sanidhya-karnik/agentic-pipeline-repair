@@ -29,7 +29,7 @@ Go to AWS Console > RDS > Create Database:
 - Template: Free tier
 - DB instance identifier: `agentic-pipeline-db`
 - Master username: `pipeline_admin`
-- Master password: `hackathon2026secure`
+- Master password: `<YOUR_DB_PASSWORD>`
 - DB name: `pipeline_agent`
 - Instance: db.t3.micro
 - Public access: Yes
@@ -71,14 +71,14 @@ cp .env.example .env
 nano .env
 # Set:
 #   POSTGRES_HOST=<RDS_ENDPOINT>
-#   POSTGRES_PASSWORD=hackathon2026secure
+#   POSTGRES_PASSWORD=<YOUR_DB_PASSWORD>
 #   AWS_ACCESS_KEY_ID=<your key>
 #   AWS_SECRET_ACCESS_KEY=<your secret>
 
 # Run dbt models
 cd dbt_project
 export POSTGRES_HOST=<RDS_ENDPOINT>
-export POSTGRES_PASSWORD=hackathon2026secure
+export POSTGRES_PASSWORD=<YOUR_DB_PASSWORD>
 export POSTGRES_USER=pipeline_admin
 export POSTGRES_DB=pipeline_agent
 export POSTGRES_PORT=5432
@@ -124,11 +124,3 @@ Or manually delete in AWS Console:
 1. EC2 > Instances > Terminate
 2. RDS > Databases > Delete (skip final snapshot)
 3. EC2 > Security Groups > Delete
-
-## Sharing with Judges
-The hackathon requires sharing access with:
-- testing@devpost.com
-- Amazon-Nova-hackathon@amazon.com
-
-For the GitHub repo (if private), add these as collaborators.
-For the live API, it will be accessible at `http://<EC2_PUBLIC_IP>:8000/docs`.

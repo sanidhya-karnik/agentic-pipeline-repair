@@ -12,7 +12,7 @@ AWS_REGION="us-east-1"
 DB_INSTANCE_ID="agentic-pipeline-db"
 DB_NAME="pipeline_agent"
 DB_USER="pipeline_admin"
-DB_PASSWORD="hackathon2026secure"
+DB_PASSWORD="<SET_YOUR_DB_PASSWORD>"
 DB_INSTANCE_CLASS="db.t3.micro"
 
 EC2_KEY_NAME="agentic-pipeline-key"

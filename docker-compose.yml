@@ -7,7 +7,7 @@ services:
     environment:
       POSTGRES_DB: pipeline_agent
       POSTGRES_USER: pipeline_admin
-      POSTGRES_PASSWORD: hackathon2026
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
     ports:
       - "5432:5432"
     volumes:

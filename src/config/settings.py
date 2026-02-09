@@ -16,7 +16,7 @@ class Settings:
     POSTGRES_PORT: int = int(os.getenv("POSTGRES_PORT", "5432"))
     POSTGRES_DB: str = os.getenv("POSTGRES_DB", "pipeline_agent")
     POSTGRES_USER: str = os.getenv("POSTGRES_USER", "pipeline_admin")
-    POSTGRES_PASSWORD: str = os.getenv("POSTGRES_PASSWORD", "hackathon2026")
+    POSTGRES_PASSWORD: str = os.getenv("POSTGRES_PASSWORD", "")
 
     @property
     def database_url(self) -> str:
