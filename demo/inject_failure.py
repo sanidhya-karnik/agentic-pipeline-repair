@@ -10,6 +10,7 @@ Usage:
 
 import argparse
 import json
+import os
 from datetime import datetime, timedelta
 from src.config.db import execute_query, execute_write
 
@@ -135,7 +136,7 @@ def reset_demo():
     print("[RESET] Resetting demo state...")
 
     # Remove added column
-    execute_write("ALTER TABLE raw.orders DROP COLUMN IF EXISTS discount_amount;")
+    execute_write("ALTER TABLE raw.orders DROP COLUMN IF EXISTS discount_amount CASCADE;")
 
     # Restore null amounts
     execute_write("""
@@ -170,6 +171,27 @@ def reset_demo():
         WHERE table_schema IN ('raw', 'staging', 'marts')
         ORDER BY table_schema, table_name, ordinal_position;
     """)
+
+    # Restore dbt model from backup if it exists
+    import glob
+    for backup in glob.glob(os.path.join(os.path.dirname(os.path.dirname(__file__)), "dbt_project", "models", "**", "*.sql.backup"), recursive=True):
+        original = backup.replace(".backup", "")
+        with open(backup, "r") as f:
+            content = f.read()
+        with open(original, "w") as f:
+            f.write(content)
+        os.remove(backup)
+        print(f"   Restored {os.path.basename(original)} from backup.")
+
+    # Re-run dbt to recreate views that may have been dropped by CASCADE
+    import subprocess
+    dbt_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "dbt_project")
+    subprocess.run(
+        ["dbt", "run", "--profiles-dir", "."],
+        cwd=dbt_dir, capture_output=True, text=True,
+        env={**os.environ},
+    )
+    print("   dbt models rebuilt.")
 
     print("   Done. Demo state reset to clean.")
 

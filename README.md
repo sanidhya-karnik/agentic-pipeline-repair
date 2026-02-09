@@ -19,13 +19,17 @@ An autonomous multi-agent system that monitors, diagnoses, and repairs data pipe
 
 A single `check` command triggers a multi-agent workflow that automatically detects failures, traces root causes through the pipeline DAG, reads actual dbt model SQL, and proposes exact code fixes with human-in-the-loop approval.
 
-1. **Monitor Agent** scans all pipelines for failures, SLA breaches, schema drift, and data quality violations. It dynamically discovers what to check from the database at runtime.
+1. **Monitor Agent** scans all pipelines for failures, SLA breaches, schema drift, and data quality violations. Dynamically discovers what to check from the database at runtime.
 
-2. **Diagnostics Agent** uses Nova 2 Lite's extended thinking (high intensity) to perform root cause analysis. It traces the pipeline DAG upstream, reads dbt model SQL, examines run logs, and runs diagnostic queries to build evidence.
+2. **Diagnostics Agent** uses Nova 2 Lite's extended thinking (high intensity) for root cause analysis. Traces the pipeline DAG upstream, reads dbt model SQL, runs diagnostic queries, and checks historical failure patterns to identify recurring issues.
 
-3. **Repair Agent** reads the actual dbt model source code, then generates concrete fix proposals showing exact before/after SQL diffs. All fixes require human approval before application.
+3. **Repair Agent** reads actual dbt model source code, generates fix proposals with before/after diffs, and can auto-apply fixes to dbt model files with human approval. Automatically runs dbt to verify the fix compiles, and rolls back if it fails.
 
-4. **Orchestrator Agent** coordinates the full workflow and provides both an interactive CLI and a REST API for users to ask questions and approve fixes.
+4. **Verification Agent** validates that applied fixes actually resolved the issue by checking pipeline status, running quality checks, and comparing before/after metrics.
+
+5. **Orchestrator Agent** coordinates the full Monitor -> Diagnose -> Repair -> Verify workflow. Provides both an interactive CLI and a REST API.
+
+6. **Scheduler** runs automated health checks at configurable intervals as a background process.
 
 ## Architecture
 
@@ -60,7 +64,7 @@ A single `check` command triggers a multi-agent workflow that automatically dete
 
 The React dashboard provides real-time visibility into pipeline health, the DAG topology with color-coded status, and an agent activity feed showing all Monitor/Diagnostics/Repair actions. A built-in chat interface allows direct interaction with the Orchestrator Agent from the browser.
 
-## Agent Tools (11 total)
+## Agent Tools (16 total)
 
 The agents interact with pipeline infrastructure through these tools:
 
@@ -75,8 +79,13 @@ The agents interact with pipeline infrastructure through these tools:
 | `get_dbt_model_sql` | Read actual dbt model SQL to understand and propose fixes |
 | `get_monitored_tables` | Dynamically discover all tables tracked for schema drift |
 | `get_pipelines_with_quality_checks` | Dynamically discover pipelines with quality checks |
+| `apply_dbt_model_fix` | Write updated SQL to dbt model files (with backup) |
+| `run_dbt_model` | Run dbt to compile and verify a fix |
+| `rollback_dbt_model` | Revert a dbt model to its backup if fix fails |
 | `execute_diagnostic_sql` | Run read-only SQL queries for investigation |
 | `log_agent_action` | Record agent actions for audit trail |
+| `get_agent_action_history` | Query past agent actions for pattern analysis |
+| `get_failure_patterns` | Analyze recurring failures across pipelines |
 
 Agents discover what to monitor at runtime using `get_monitored_tables` and `get_pipelines_with_quality_checks`, making the system work with any dataset without code changes.
 
@@ -168,10 +177,12 @@ agentic-pipeline-repair/
 │   ├── agents/
 │   │   ├── monitor.py        # Detects pipeline issues
 │   │   ├── diagnostics.py    # Root cause analysis with extended thinking
-│   │   ├── repair.py         # Generates fix proposals using dbt model SQL
-│   │   └── orchestrator.py   # Coordinates agents, interactive CLI
+│   │   ├── repair.py         # Generates and auto-applies fixes to dbt models
+│   │   ├── verification.py   # Validates fixes resolved the issue
+│   │   ├── scheduler.py      # Automated health checks on a schedule
+│   │   └── orchestrator.py   # Coordinates 5 agents, interactive CLI
 │   ├── mcp_server/
-│   │   └── tools.py          # 11 MCP tools for pipeline interaction
+│   │   └── tools.py          # 16 MCP tools for pipeline interaction
 │   ├── api/
 │   │   └── main.py           # FastAPI REST endpoints + dashboard
 │   └── config/
@@ -210,3 +221,8 @@ agentic-pipeline-repair/
 | POST | /repair | Get fix proposal for a diagnosis |
 | POST | /chat | Interactive chat with orchestrator |
 | GET | /actions | Recent agent actions log |
+| POST | /verify | Verify a fix resolved the issue |
+| POST | /scheduler/start | Start automated health checks |
+| POST | /scheduler/stop | Stop automated health checks |
+| GET | /scheduler/status | Get scheduler status |
+| GET | /patterns | Historical failure patterns |

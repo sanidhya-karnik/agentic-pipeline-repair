@@ -29,6 +29,8 @@ from src.agents.orchestrator import PipelineOrchestrator
 from src.agents.monitor import run_health_check
 from src.agents.diagnostics import diagnose_alert
 from src.agents.repair import propose_fix
+from src.agents.verification import verify_fix
+from src.agents.scheduler import scheduler
 
 app = FastAPI(
     title="Agentic Pipeline Repair API",
@@ -199,6 +201,53 @@ def get_recent_actions(limit: int = 50):
     """
     results = execute_query(sql, (limit,))
     return {"actions": results}
+
+
+# ---- Verification ----
+
+class VerifyRequest(BaseModel):
+    pipeline_name: str
+    fix_description: str
+
+
+@app.post("/verify")
+def verify(request: VerifyRequest):
+    """Verify that an applied fix resolved the issue."""
+    result = verify_fix(request.pipeline_name, request.fix_description)
+    return {"verification": result}
+
+
+# ---- Scheduler ----
+
+@app.post("/scheduler/start")
+def start_scheduler(interval_minutes: int = 5):
+    """Start automated pipeline health checks."""
+    scheduler.interval = interval_minutes * 60
+    scheduler.start()
+    return scheduler.status()
+
+
+@app.post("/scheduler/stop")
+def stop_scheduler():
+    """Stop automated pipeline health checks."""
+    scheduler.stop()
+    return scheduler.status()
+
+
+@app.get("/scheduler/status")
+def scheduler_status():
+    """Get scheduler status."""
+    return scheduler.status()
+
+
+# ---- Failure Patterns ----
+
+@app.get("/patterns")
+def get_patterns():
+    """Get historical failure patterns across all pipelines."""
+    from src.mcp_server.tools import get_failure_patterns
+    result = get_failure_patterns.fn()
+    return {"patterns": json.loads(result)}
 
 
 # ---- Dashboard ----

@@ -1,5 +1,5 @@
 """
-Orchestrator Agent: Coordinates Monitor -> Diagnostics -> Repair pipeline.
+Orchestrator Agent: Coordinates Monitor -> Diagnostics -> Repair -> Verify pipeline.
 
 This is the main entry point that ties all agents together.
 It decides when to escalate vs auto-handle, and maintains
@@ -13,31 +13,41 @@ from src.config.settings import settings
 from src.agents.monitor import create_monitor_agent, run_health_check
 from src.agents.diagnostics import create_diagnostics_agent, diagnose_alert
 from src.agents.repair import create_repair_agent, propose_fix
+from src.agents.verification import create_verification_agent, verify_fix
 from src.mcp_server.tools import get_pipeline_status, log_agent_action
 
 
 ORCHESTRATOR_SYSTEM_PROMPT = """You are the Orchestrator for Agentic Pipeline Repair. You coordinate the full
-pipeline incident response workflow:
+pipeline incident response workflow with 5 agents:
+
+AGENTS:
+- Monitor Agent: Detects failures, SLA breaches, schema drift, quality issues
+- Diagnostics Agent: Root cause analysis with extended thinking
+- Repair Agent: Proposes and applies dbt model fixes
+- Verification Agent: Confirms fixes resolved the issue
+- You (Orchestrator): Coordinates the workflow
 
 WORKFLOW:
 1. MONITOR: Run health checks to detect issues
 2. TRIAGE: Assess severity and decide on response
-3. DIAGNOSE: For non-trivial issues, get root cause analysis
-4. REPAIR: Get fix proposals for diagnosed issues
-5. REPORT: Summarize findings and recommendations for the user
+3. DIAGNOSE: For non-trivial issues, get root cause analysis (includes pattern history)
+4. REPAIR: Propose fixes, apply with approval, run dbt to compile
+5. VERIFY: Confirm the fix worked by checking pipeline status and quality
+6. LEARN: Check failure patterns to identify recurring issues
+
+You have access to all tools. Key capabilities:
+- apply_dbt_model_fix: Write fixes directly to dbt model files (ask for approval first)
+- run_dbt_model: Run dbt to compile and test after applying a fix
+- rollback_dbt_model: Revert if a fix doesn't work
+- get_failure_patterns: Identify recurring issues across pipelines
+- get_agent_action_history: Review past actions for context
 
 DECISION RULES:
-- CRITICAL alerts: Always run full diagnosis + repair proposal
-- WARNING alerts: Run diagnosis, propose fix only if confidence > 0.7
-- INFO alerts: Log and monitor, no immediate action needed
+- CRITICAL alerts: Full diagnosis + repair + auto-apply with approval + verify
+- WARNING alerts: Diagnosis + propose fix (don't auto-apply)
+- INFO alerts: Log and monitor
 
-You communicate results clearly to the user, showing:
-- What was detected
-- What the root cause is
-- What fix is proposed
-- Whether it needs human approval
-
-Always be transparent about confidence levels and uncertainties.
+Always be transparent about confidence levels and ask for approval before applying fixes.
 """
 
 
@@ -48,6 +58,7 @@ class PipelineOrchestrator:
         self.monitor = create_monitor_agent()
         self.diagnostics = create_diagnostics_agent()
         self.repair = create_repair_agent()
+        self.verification = create_verification_agent()
 
     def run_full_check(self) -> dict:
         """Run a complete health check -> diagnose -> repair cycle."""
@@ -59,26 +70,23 @@ class PipelineOrchestrator:
             "summary": "",
         }
 
-        # Step 1: Health check
         print("[MONITOR] Running pipeline health check...")
         health_result = run_health_check()
         results["health_check"] = health_result
-        print(f"   Health check complete.")
+        print("   Health check complete.")
 
         return results
 
     def handle_alert(self, alert: dict) -> dict:
         """Handle a specific alert through the full pipeline."""
-        result = {"alert": alert, "diagnosis": None, "fix_proposal": None}
+        result = {"alert": alert, "diagnosis": None, "fix_proposal": None, "verification": None}
 
-        # Step 1: Diagnose
         print(f"[DIAGNOSTICS] Diagnosing: {alert.get('pipeline_name', 'unknown')}...")
         diagnosis = diagnose_alert(alert)
         result["diagnosis"] = diagnosis
-        print(f"   Diagnosis complete.")
+        print("   Diagnosis complete.")
 
-        # Step 2: Propose fix
-        print(f"[REPAIR] Generating fix proposal...")
+        print("[REPAIR] Generating fix proposal...")
         fix = propose_fix(
             {
                 "root_cause": diagnosis,
@@ -88,7 +96,7 @@ class PipelineOrchestrator:
             }
         )
         result["fix_proposal"] = fix
-        print(f"   Fix proposal ready.")
+        print("   Fix proposal ready.")
 
         return result
 
@@ -116,7 +124,7 @@ class PipelineOrchestrator:
         print("\nAgentic Pipeline Repair")
         print("=" * 50)
         print("I can help you monitor, diagnose, and fix pipeline issues.")
-        print("Type 'quit' to exit, 'check' for a full health scan.\n")
+        print("Commands: 'check' (health scan), 'patterns' (failure history), 'quit' (exit)\n")
 
         while True:
             user_input = input("You: ").strip()
@@ -129,6 +137,11 @@ class PipelineOrchestrator:
 2. Use get_monitored_tables to discover tracked tables, then check each for schema drift.
 3. Use get_pipelines_with_quality_checks to discover which pipelines have quality checks, then check results for EACH one. Pipelines can show 'success' but still have FAILING quality checks.
 4. Report ALL issues found including quality check failures."""
+            elif user_input.lower() == "patterns":
+                user_input = """Analyze failure patterns across all pipelines:
+1. Use get_failure_patterns to see which pipelines fail most frequently.
+2. Use get_agent_action_history to review recent agent actions.
+3. Identify recurring issues and recommend preventive measures."""
 
             print("\nThinking...\n")
             response = agent(user_input)

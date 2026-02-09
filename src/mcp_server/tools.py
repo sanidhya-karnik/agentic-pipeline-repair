@@ -1,18 +1,23 @@
 """
 MCP Server exposing pipeline metadata tools for agents.
 
-Tools:
+Tools (16 total):
 - get_pipeline_status: Current state of all pipelines
 - get_pipeline_dag: Dependency graph for a pipeline
 - get_run_history: Recent run history for a pipeline
-- get_schema_info: Table schemas and column stats
+- get_schema_info: Table schemas with drift detection
 - get_quality_checks: Data quality check results
 - list_dbt_models: Discover all dbt models
 - get_dbt_model_sql: Read dbt model SQL source code
+- apply_dbt_model_fix: Write fixes to dbt model files
+- run_dbt_model: Run dbt to compile and verify fixes
+- rollback_dbt_model: Revert dbt model to backup
 - get_monitored_tables: Discover tables tracked for schema drift
 - get_pipelines_with_quality_checks: Discover pipelines with quality checks
 - execute_diagnostic_sql: Run read-only diagnostic queries
 - log_agent_action: Record an agent action
+- get_agent_action_history: Query past actions for pattern analysis
+- get_failure_patterns: Analyze recurring failures
 """
 
 import json
@@ -364,6 +369,175 @@ def get_pipelines_with_quality_checks() -> str:
     return json.dumps(results, default=str, indent=2)
 
 
+@tool
+def apply_dbt_model_fix(model_name: str, new_sql: str) -> str:
+    """Write updated SQL to a dbt model file. This applies a proposed fix by overwriting
+    the model's SQL file. Requires human approval before calling.
+
+    Args:
+        model_name: Name of the dbt model to update (e.g., 'stg_orders').
+        new_sql: The complete new SQL content for the model file.
+    """
+    models_dir = os.path.join(DBT_PROJECT_PATH, "models")
+    if not os.path.exists(models_dir):
+        return json.dumps({"error": "dbt models directory not found"})
+
+    for root, dirs, files in os.walk(models_dir):
+        for f in files:
+            if f == f"{model_name}.sql":
+                filepath = os.path.join(root, f)
+                # Backup original
+                backup_path = filepath + ".backup"
+                with open(filepath, "r") as fh:
+                    original = fh.read()
+                with open(backup_path, "w") as fh:
+                    fh.write(original)
+                # Write new SQL
+                with open(filepath, "w") as fh:
+                    fh.write(new_sql)
+                return json.dumps({
+                    "applied": True,
+                    "model_name": model_name,
+                    "path": os.path.relpath(filepath, DBT_PROJECT_PATH),
+                    "backup_path": os.path.relpath(backup_path, DBT_PROJECT_PATH),
+                    "message": f"Fix applied to {model_name}. Backup saved. Run dbt to compile.",
+                }, indent=2)
+
+    return json.dumps({"error": f"Model '{model_name}' not found in dbt project"})
+
+
+@tool
+def run_dbt_model(model_name: str) -> str:
+    """Run a specific dbt model (and its downstream dependencies) to compile and test the fix.
+    Use this after applying a fix to verify it compiles and executes successfully.
+
+    Args:
+        model_name: Name of the dbt model to run (e.g., 'stg_orders'). Use '+' suffix to include downstream.
+    """
+    import subprocess
+    try:
+        result = subprocess.run(
+            ["dbt", "run", "--select", f"{model_name}+", "--profiles-dir", "."],
+            cwd=DBT_PROJECT_PATH,
+            capture_output=True, text=True, timeout=120,
+            env={**os.environ},
+        )
+        return json.dumps({
+            "success": result.returncode == 0,
+            "stdout": result.stdout[-2000:] if result.stdout else "",
+            "stderr": result.stderr[-2000:] if result.stderr else "",
+        }, indent=2)
+    except subprocess.TimeoutExpired:
+        return json.dumps({"error": "dbt run timed out after 120 seconds"})
+    except Exception as e:
+        return json.dumps({"error": str(e)})
+
+
+@tool
+def rollback_dbt_model(model_name: str) -> str:
+    """Rollback a dbt model to its backup version. Use this if a fix didn't work.
+
+    Args:
+        model_name: Name of the dbt model to rollback (e.g., 'stg_orders').
+    """
+    models_dir = os.path.join(DBT_PROJECT_PATH, "models")
+    for root, dirs, files in os.walk(models_dir):
+        for f in files:
+            if f == f"{model_name}.sql":
+                filepath = os.path.join(root, f)
+                backup_path = filepath + ".backup"
+                if not os.path.exists(backup_path):
+                    return json.dumps({"error": f"No backup found for {model_name}"})
+                with open(backup_path, "r") as fh:
+                    original = fh.read()
+                with open(filepath, "w") as fh:
+                    fh.write(original)
+                os.remove(backup_path)
+                return json.dumps({
+                    "rolled_back": True,
+                    "model_name": model_name,
+                    "message": f"{model_name} restored from backup.",
+                })
+    return json.dumps({"error": f"Model '{model_name}' not found"})
+
+
+@tool
+def get_agent_action_history(pipeline_name: str = None, limit: int = 50) -> str:
+    """Get history of all agent actions for pattern analysis. Use this to identify
+    recurring issues, frequently failing pipelines, and common root causes.
+
+    Args:
+        pipeline_name: Optional filter by pipeline name. If None, returns all actions.
+        limit: Maximum number of actions to return.
+    """
+    if pipeline_name:
+        sql = """
+            SELECT
+                aa.agent_name, aa.action_type, p.pipeline_name,
+                aa.summary, aa.confidence_score, aa.status, aa.created_at
+            FROM pipeline_meta.agent_actions aa
+            LEFT JOIN pipeline_meta.pipelines p ON p.pipeline_id = aa.pipeline_id
+            WHERE p.pipeline_name = %s
+            ORDER BY aa.created_at DESC
+            LIMIT %s;
+        """
+        results = execute_query(sql, (pipeline_name, limit))
+    else:
+        sql = """
+            SELECT
+                aa.agent_name, aa.action_type, p.pipeline_name,
+                aa.summary, aa.confidence_score, aa.status, aa.created_at,
+                aa.details
+            FROM pipeline_meta.agent_actions aa
+            LEFT JOIN pipeline_meta.pipelines p ON p.pipeline_id = aa.pipeline_id
+            ORDER BY aa.created_at DESC
+            LIMIT %s;
+        """
+        results = execute_query(sql, (limit,))
+    return json.dumps(results, default=str, indent=2)
+
+
+@tool
+def get_failure_patterns() -> str:
+    """Analyze historical agent actions to find recurring failure patterns.
+    Returns pipelines that fail frequently, common root causes, and trends."""
+    sql = """
+        WITH failure_counts AS (
+            SELECT
+                p.pipeline_name,
+                COUNT(*) AS failure_count,
+                MAX(aa.created_at) AS last_failure,
+                array_agg(DISTINCT aa.summary) AS failure_summaries
+            FROM pipeline_meta.agent_actions aa
+            JOIN pipeline_meta.pipelines p ON p.pipeline_id = aa.pipeline_id
+            WHERE aa.action_type IN ('alert', 'diagnosis')
+            GROUP BY p.pipeline_name
+        ),
+        fix_counts AS (
+            SELECT
+                p.pipeline_name,
+                COUNT(*) AS fix_count,
+                COUNT(*) FILTER (WHERE aa.status = 'applied') AS fixes_applied
+            FROM pipeline_meta.agent_actions aa
+            JOIN pipeline_meta.pipelines p ON p.pipeline_id = aa.pipeline_id
+            WHERE aa.action_type = 'fix_proposed'
+            GROUP BY p.pipeline_name
+        )
+        SELECT
+            fc.pipeline_name,
+            fc.failure_count,
+            fc.last_failure,
+            fc.failure_summaries,
+            COALESCE(fxc.fix_count, 0) AS fixes_proposed,
+            COALESCE(fxc.fixes_applied, 0) AS fixes_applied
+        FROM failure_counts fc
+        LEFT JOIN fix_counts fxc ON fxc.pipeline_name = fc.pipeline_name
+        ORDER BY fc.failure_count DESC;
+    """
+    results = execute_query(sql)
+    return json.dumps(results, default=str, indent=2)
+
+
 # Collect all tools for agent use
 ALL_TOOLS = [
     get_pipeline_status,
@@ -375,6 +549,11 @@ ALL_TOOLS = [
     log_agent_action,
     list_dbt_models,
     get_dbt_model_sql,
+    apply_dbt_model_fix,
+    run_dbt_model,
+    rollback_dbt_model,
     get_monitored_tables,
     get_pipelines_with_quality_checks,
+    get_agent_action_history,
+    get_failure_patterns,
 ]

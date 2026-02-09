@@ -18,6 +18,8 @@ from src.mcp_server.tools import (
     log_agent_action,
     list_dbt_models,
     get_dbt_model_sql,
+    get_agent_action_history,
+    get_failure_patterns,
 )
 
 DIAGNOSTICS_SYSTEM_PROMPT = """You are the Diagnostics Agent for Agentic Pipeline Repair. When the Monitor Agent
@@ -45,6 +47,11 @@ Your approach:
 
 Always start by checking the dependency graph and reading the dbt model SQL.
 A downstream failure is often just a symptom of an upstream problem.
+
+7. CHECK HISTORY: Use get_failure_patterns and get_agent_action_history to check if
+   this pipeline has failed before with similar symptoms. If it's a recurring issue,
+   note the pattern and recommend a more permanent fix (e.g., add schema validation,
+   add pre-checks, or improve the pipeline design).
 
 Log your diagnosis using log_agent_action with agent_name='diagnostics'.
 """
@@ -76,6 +83,8 @@ def create_diagnostics_agent() -> Agent:
             log_agent_action,
             list_dbt_models,
             get_dbt_model_sql,
+            get_agent_action_history,
+            get_failure_patterns,
         ],
     )
 

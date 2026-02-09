@@ -35,3 +35,6 @@ test.json
 *.pem
 deploy/aws_config.txt
 server.log
+
+# dbt backups from auto-fix
+*.sql.backup
