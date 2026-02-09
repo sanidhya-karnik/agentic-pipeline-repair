@@ -12,8 +12,13 @@ Endpoints:
 - GET  /actions            - Recent agent actions log
 """
 
+import os
+from pathlib import Path
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from typing import Optional
 import json
@@ -194,3 +199,17 @@ def get_recent_actions(limit: int = 50):
     """
     results = execute_query(sql, (limit,))
     return {"actions": results}
+
+
+# ---- Dashboard ----
+
+DASHBOARD_DIR = Path(__file__).resolve().parent.parent.parent / "dashboard"
+
+
+@app.get("/")
+def serve_dashboard():
+    """Serve the React dashboard."""
+    index_path = DASHBOARD_DIR / "index.html"
+    if index_path.exists():
+        return FileResponse(str(index_path))
+    return {"message": "Dashboard not found. Place index.html in /dashboard/"}
