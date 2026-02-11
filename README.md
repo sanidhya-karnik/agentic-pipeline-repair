@@ -33,32 +33,7 @@ A single `check` command triggers a multi-agent workflow that automatically dete
 
 ## Architecture
 
-```
-+-----------------------------------+
-|         FastAPI Gateway            |
-|     (Dashboard + REST API)         |
-+-----------------+-----------------+
-                  |
-+-----------------v-----------------+
-|       Orchestrator Agent           |
-|       (Strands Agents SDK)         |
-+-----+----------+----------+------+
-      |          |          |
-+-----v----+ +--v-------+ +v----------+
-|  Monitor  | |Diagnostics| |  Repair   |
-|  Agent    | |  Agent    | |  Agent    |
-+-----+----+ +--+-------+ +-+----------+
-      |          |          |
-+-----v----------v----------v------+
-|         Amazon Bedrock             |
-|    Nova 2 Lite (Extended Thinking) |
-+-----------------+-----------------+
-                  |
-+-----------------v-----------------+
-|           PostgreSQL               |
-|   (Pipeline Metadata + dbt Models) |
-+-----------------------------------+
-```
+![Architecture Diagram](docs/agentic-pipeline-repair.png)
 
 ## Dashboard
 
@@ -170,7 +145,11 @@ python -m demo.cleanup
 
 ## Cloud Deployment
 
-The project can be deployed to AWS using RDS PostgreSQL and EC2. See [deploy/DEPLOY.md](deploy/DEPLOY.md) for full instructions.
+The project can be deployed to AWS using RDS PostgreSQL and EC2.
+
+![AWS Cloud Architecture](docs/aws-cloud-architecture.png)
+
+See [deploy/DEPLOY.md](deploy/DEPLOY.md) for full instructions.
 
 ## Project Structure
 
@@ -204,6 +183,11 @@ agentic-pipeline-repair/
 │   └── models/
 │       ├── staging/          # Staging models (stg_customers, stg_orders, etc.)
 │       └── marts/            # Mart models (customer_orders, revenue, product perf.)
+├── docs/
+│   ├── agentic-pipeline-repair.drawio  # Architecture diagram (editable)
+│   ├── agentic-pipeline-repair.png     # Architecture diagram (image)
+│   ├── aws-cloud-architecture.drawio   # AWS deployment diagram (editable)
+│   └── aws-cloud-architecture.png      # AWS deployment diagram (image)
 ├── deploy/
 │   ├── DEPLOY.md             # Cloud deployment guide
 │   ├── setup_aws.sh          # Automated AWS setup script
