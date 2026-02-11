@@ -62,7 +62,7 @@ A single `check` command triggers a multi-agent workflow that automatically dete
 
 ## Dashboard
 
-The React dashboard provides real-time visibility into pipeline health, the DAG topology with color-coded status, and an agent activity feed showing all Monitor/Diagnostics/Repair actions. A built-in chat interface allows direct interaction with the Orchestrator Agent from the browser.
+The React dashboard provides real-time visibility into pipeline health with the DAG topology showing color-coded status for each pipeline stage (Source, Staging, Marts). Auto-refreshes every 10 seconds with a manual refresh button.
 
 ## Agent Tools (16 total)
 
@@ -133,6 +133,10 @@ Open http://localhost:8000 for the dashboard, or http://localhost:8000/docs for 
 
 ### 6. Run the interactive CLI agent
 ```bash
+# Rich CLI (recommended for demos)
+python -m src.agents.rich_cli
+
+# Standard CLI
 python -m src.agents.orchestrator
 ```
 Type `check` for a full health scan, or ask natural language questions like:
@@ -157,8 +161,11 @@ python -m demo.inject_failure --scenario sla_breach
 # Inject all three at once
 python -m demo.inject_failure --scenario all
 
-# Reset to clean state
+# Reset to clean state (full reset including schema)
 python -m demo.inject_failure --scenario reset
+
+# Quick cleanup (clear failures, keep schema)
+python -m demo.cleanup
 ```
 
 ## Cloud Deployment
@@ -180,7 +187,8 @@ agentic-pipeline-repair/
 │   │   ├── repair.py         # Generates and auto-applies fixes to dbt models
 │   │   ├── verification.py   # Validates fixes resolved the issue
 │   │   ├── scheduler.py      # Automated health checks on a schedule
-│   │   └── orchestrator.py   # Coordinates 5 agents, interactive CLI
+│   │   ├── orchestrator.py   # Coordinates 5 agents, interactive CLI
+│   │   └── rich_cli.py       # Rich terminal UI for demos
 │   ├── mcp_server/
 │   │   └── tools.py          # 16 MCP tools for pipeline interaction
 │   ├── api/
@@ -205,7 +213,8 @@ agentic-pipeline-repair/
 │   └── sql/
 │       └── init.sql          # Database schema + seed data
 └── demo/
-    └── inject_failure.py     # Demo scenario injection scripts
+    ├── inject_failure.py     # Demo scenario injection scripts
+    └── cleanup.py            # Quick cleanup utility
 ```
 
 ## API Endpoints
