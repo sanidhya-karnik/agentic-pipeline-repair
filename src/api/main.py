@@ -145,7 +145,18 @@ def get_pipeline_detail(pipeline_name: str):
 @app.post("/check")
 def trigger_health_check():
     """Trigger a full pipeline health check via the Monitor Agent."""
+    from src.config.db import execute_write
     result = run_health_check()
+    # Always log the health check action so it shows in the dashboard
+    try:
+        summary = str(result)[:500] if result else "Health check completed"
+        execute_write("""
+            INSERT INTO pipeline_meta.agent_actions
+                (agent_name, action_type, summary, confidence_score)
+            VALUES ('monitor', 'health_check', %s, 0.95)
+        """, (summary,))
+    except Exception:
+        pass
     return {"result": result}
 
 
@@ -163,27 +174,72 @@ def repair(diagnosis: DiagnosisRequest):
     return {"fix_proposal": result}
 
 
+# ---- Persistent Chat Agent ----
+
+import threading
+from strands import Agent
+from strands.models import BedrockModel
+from src.mcp_server.tools import ALL_TOOLS
+
+CHAT_PROMPT = """You are the Orchestrator for Agentic Pipeline Repair, running in a web chat.
+
+You help users monitor, diagnose, and repair data pipeline issues.
+
+RULES:
+- Be concise. Keep responses short and actionable.
+- Use at most 8 tool calls per message. Do not over-investigate.
+- For status checks: call get_pipeline_status, summarize, and ask what to investigate.
+- For diagnosis: focus on the specific pipeline asked about.
+- For fixes: read the dbt model, propose the fix, and wait for approval before applying.
+- When user approves: call apply_dbt_model_fix then run_dbt_model to verify.
+"""
+
+_chat_agent = None
+
+def _get_chat_agent():
+    global _chat_agent
+    if _chat_agent is None:
+        model = BedrockModel(
+            model_id=settings.NOVA_MODEL_ID,
+            region_name=settings.AWS_REGION,
+            additional_request_fields={
+                "reasoningConfig": {"type": "enabled", "maxReasoningEffort": "medium"}
+            },
+        )
+        _chat_agent = Agent(model=model, system_prompt=CHAT_PROMPT, tools=ALL_TOOLS)
+    return _chat_agent
+
+
 @app.post("/chat", response_model=ChatResponse)
 def chat(request: ChatRequest):
-    """Interactive chat with the Orchestrator Agent."""
-    from strands import Agent
-    from strands.models import BedrockModel
-    from src.mcp_server.tools import ALL_TOOLS
-    from src.agents.orchestrator import ORCHESTRATOR_SYSTEM_PROMPT
+    """Interactive chat with persistent conversation history."""
+    agent = _get_chat_agent()
+    result = {"response": ""}
+    error = {"msg": None}
 
-    model = BedrockModel(
-        model_id=settings.NOVA_MODEL_ID,
-        region_name=settings.AWS_REGION,
-    )
+    def run():
+        try:
+            result["response"] = str(agent(request.message))
+        except Exception as e:
+            error["msg"] = str(e)
 
-    agent = Agent(
-        model=model,
-        system_prompt=ORCHESTRATOR_SYSTEM_PROMPT,
-        tools=ALL_TOOLS,
-    )
+    t = threading.Thread(target=run)
+    t.start()
+    t.join(timeout=120)
 
-    response = agent(request.message)
-    return ChatResponse(response=str(response))
+    if t.is_alive():
+        return ChatResponse(response="Request timed out. Try a more specific question.")
+    if error["msg"]:
+        return ChatResponse(response=f"Error: {error['msg']}")
+    return ChatResponse(response=result["response"])
+
+
+@app.post("/chat/reset")
+def reset_chat():
+    """Reset chat agent and conversation history."""
+    global _chat_agent
+    _chat_agent = None
+    return {"status": "reset"}
 
 
 @app.get("/actions")

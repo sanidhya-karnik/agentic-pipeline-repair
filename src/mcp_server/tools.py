@@ -410,11 +410,14 @@ def apply_dbt_model_fix(model_name: str, new_sql: str) -> str:
 def run_dbt_model(model_name: str) -> str:
     """Run a specific dbt model (and its downstream dependencies) to compile and test the fix.
     Use this after applying a fix to verify it compiles and executes successfully.
+    Also records the run result in pipeline_meta.pipeline_runs so the dashboard updates.
 
     Args:
         model_name: Name of the dbt model to run (e.g., 'stg_orders'). Use '+' suffix to include downstream.
     """
     import subprocess
+    import time
+    start_time = time.time()
     try:
         result = subprocess.run(
             ["dbt", "run", "--select", f"{model_name}+", "--profiles-dir", "."],
@@ -422,8 +425,47 @@ def run_dbt_model(model_name: str) -> str:
             capture_output=True, text=True, timeout=120,
             env={**os.environ},
         )
+        duration = int(time.time() - start_time)
+        success = result.returncode == 0
+
+        # Record run results for each model that was part of the run
+        # Parse stdout for model names (lines like "OK created sql view model public_staging.stg_orders")
+        models_run = [model_name]
+        if result.stdout:
+            import re
+            for match in re.finditer(r'model \S+\.(\w+)', result.stdout):
+                m = match.group(1)
+                if m not in models_run:
+                    models_run.append(m)
+
+        for m in models_run:
+            try:
+                execute_write("""
+                    INSERT INTO pipeline_meta.pipeline_runs
+                        (pipeline_id, status, started_at, completed_at, duration_seconds, error_message)
+                    SELECT
+                        p.pipeline_id,
+                        %s,
+                        NOW() - make_interval(secs => %s),
+                        NOW(),
+                        %s,
+                        %s
+                    FROM pipeline_meta.pipelines p
+                    WHERE p.pipeline_name = %s;
+                """, (
+                    'success' if success else 'failed',
+                    duration,
+                    duration,
+                    None if success else result.stderr[-500:] if result.stderr else 'dbt run failed',
+                    m,
+                ))
+            except Exception:
+                pass  # Don't fail the tool if logging fails
+
         return json.dumps({
-            "success": result.returncode == 0,
+            "success": success,
+            "models_run": models_run,
+            "duration_seconds": duration,
             "stdout": result.stdout[-2000:] if result.stdout else "",
             "stderr": result.stderr[-2000:] if result.stderr else "",
         }, indent=2)

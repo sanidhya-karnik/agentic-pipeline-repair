@@ -29,446 +29,143 @@
             --accent-purple: #8b5cf6;
             --accent-purple-dim: rgba(139, 92, 246, 0.15);
         }
-
         * { margin: 0; padding: 0; box-sizing: border-box; }
-
-        body {
-            font-family: 'Outfit', sans-serif;
-            background: var(--bg-primary);
-            color: var(--text-primary);
-            min-height: 100vh;
-        }
-
+        body { font-family: 'Outfit', sans-serif; background: var(--bg-primary); color: var(--text-primary); min-height: 100vh; }
         .mono { font-family: 'JetBrains Mono', monospace; }
-
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: var(--bg-secondary); }
         ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(8px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
-        }
-
-        @keyframes slideIn {
-            from { opacity: 0; transform: translateX(-12px); }
-            to { opacity: 1; transform: translateX(0); }
-        }
-
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes slideIn { from { opacity: 0; transform: translateX(-12px); } to { opacity: 1; transform: translateX(0); } }
         .fade-in { animation: fadeIn 0.4s ease-out forwards; }
-        .pulse { animation: pulse 2s ease-in-out infinite; }
     </style>
 </head>
 <body>
 <div id="root"></div>
 <script type="text/babel">
-const { useState, useEffect, useRef, useCallback } = React;
+const { useState, useEffect, useCallback } = React;
 
-const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-    ? 'http://localhost:8000'
-    : `http://${window.location.hostname}:8000`;
+const API = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    ? 'http://localhost:8000' : `http://${window.location.hostname}:8000`;
 
-// ─── Status Badge ───
-function StatusBadge({ status }) {
-    const config = {
-        HEALTHY: { color: 'var(--accent-green)', bg: 'var(--accent-green-dim)', label: 'Healthy' },
-        FAILED: { color: 'var(--accent-red)', bg: 'var(--accent-red-dim)', label: 'Failed' },
-        SLA_BREACHED: { color: 'var(--accent-yellow)', bg: 'var(--accent-yellow-dim)', label: 'SLA Breach' },
-        RUNNING: { color: 'var(--accent-blue)', bg: 'var(--accent-blue-dim)', label: 'Running' },
-        success: { color: 'var(--accent-green)', bg: 'var(--accent-green-dim)', label: 'Success' },
-        failed: { color: 'var(--accent-red)', bg: 'var(--accent-red-dim)', label: 'Failed' },
-        running: { color: 'var(--accent-blue)', bg: 'var(--accent-blue-dim)', label: 'Running' },
-    };
-    const c = config[status] || { color: 'var(--text-muted)', bg: 'transparent', label: status };
-    return React.createElement('span', {
-        style: {
-            display: 'inline-flex', alignItems: 'center', gap: 6,
-            padding: '3px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600,
-            color: c.color, background: c.bg, letterSpacing: 0.3,
-        }
-    },
-        React.createElement('span', {
-            style: { width: 6, height: 6, borderRadius: '50%', background: c.color,
-                     boxShadow: `0 0 6px ${c.color}` }
-        }),
-        c.label
-    );
+function Badge({ status }) {
+    const m = { HEALTHY:['var(--accent-green)','var(--accent-green-dim)','Healthy'], FAILED:['var(--accent-red)','var(--accent-red-dim)','Failed'], SLA_BREACHED:['var(--accent-yellow)','var(--accent-yellow-dim)','SLA Breach'], RUNNING:['var(--accent-blue)','var(--accent-blue-dim)','Running'], success:['var(--accent-green)','var(--accent-green-dim)','Success'], failed:['var(--accent-red)','var(--accent-red-dim)','Failed'], running:['var(--accent-blue)','var(--accent-blue-dim)','Running'] };
+    const [c,b,l] = m[status] || ['var(--text-muted)','transparent',status];
+    return React.createElement('span', { style: { display:'inline-flex', alignItems:'center', gap:6, padding:'3px 10px', borderRadius:20, fontSize:12, fontWeight:600, color:c, background:b } },
+        React.createElement('span', { style: { width:6, height:6, borderRadius:'50%', background:c, boxShadow:`0 0 6px ${c}` } }), l);
 }
 
-// ─── Pipeline Card ───
-function PipelineCard({ pipeline, onClick, isSelected }) {
-    const healthStatus = pipeline.error_message ? 'FAILED'
-        : pipeline.last_run_status === 'running' ? 'RUNNING'
-        : pipeline.duration_seconds > (pipeline.sla_minutes || 30) * 60 ? 'SLA_BREACHED'
-        : 'HEALTHY';
-    const tier = pipeline.pipeline_name.startsWith('raw') ? 'SOURCE'
-        : pipeline.pipeline_name.startsWith('stg') ? 'STAGING' : 'MART';
-    const tierColor = tier === 'SOURCE' ? 'var(--accent-blue)' : tier === 'STAGING' ? 'var(--accent-purple)' : 'var(--accent-green)';
-
-    return React.createElement('div', {
-        onClick: () => onClick(pipeline),
-        style: {
-            background: isSelected ? 'var(--bg-card-hover)' : 'var(--bg-card)',
-            border: `1px solid ${isSelected ? 'var(--accent-blue)' : 'var(--border)'}`,
-            borderRadius: 10, padding: 16, cursor: 'pointer',
-            transition: 'all 0.2s ease',
-        },
-        onMouseEnter: e => { if (!isSelected) e.currentTarget.style.borderColor = 'var(--text-muted)'; },
-        onMouseLeave: e => { if (!isSelected) e.currentTarget.style.borderColor = 'var(--border)'; },
-    },
-        React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 } },
+function PipelineCard({ p }) {
+    const st = p.error_message ? 'FAILED' : p.last_run_status==='running' ? 'RUNNING' : p.duration_seconds > (p.sla_minutes||30)*60 ? 'SLA_BREACHED' : 'HEALTHY';
+    const tier = p.pipeline_name.startsWith('raw') ? 'SOURCE' : p.pipeline_name.startsWith('stg') ? 'STAGING' : 'MART';
+    const tc = tier==='SOURCE' ? 'var(--accent-blue)' : tier==='STAGING' ? 'var(--accent-purple)' : 'var(--accent-green)';
+    return React.createElement('div', { style: { background:'var(--bg-card)', border:'1px solid var(--border)', borderRadius:10, padding:16 } },
+        React.createElement('div', { style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:10} },
             React.createElement('div', null,
-                React.createElement('span', {
-                    className: 'mono',
-                    style: { fontSize: 11, fontWeight: 600, color: tierColor, letterSpacing: 1, textTransform: 'uppercase' }
-                }, tier),
-                React.createElement('div', {
-                    className: 'mono',
-                    style: { fontSize: 14, fontWeight: 600, marginTop: 4 }
-                }, pipeline.pipeline_name),
-            ),
-            React.createElement(StatusBadge, { status: healthStatus })
-        ),
-        pipeline.error_message && React.createElement('div', {
-            className: 'mono',
-            style: { fontSize: 11, color: 'var(--accent-red)', marginTop: 8, lineHeight: 1.4,
-                     background: 'var(--accent-red-dim)', padding: '6px 8px', borderRadius: 6,
-                     maxHeight: 60, overflow: 'hidden' }
-        }, pipeline.error_message),
-        React.createElement('div', { style: { display: 'flex', gap: 16, marginTop: 10, fontSize: 12, color: 'var(--text-secondary)' } },
-            React.createElement('span', null, 'Duration: ', React.createElement('span', { className: 'mono' }, pipeline.duration_seconds ? `${pipeline.duration_seconds}s` : '-')),
-            React.createElement('span', null, 'Rows: ', React.createElement('span', { className: 'mono' }, pipeline.last_run_rows ? pipeline.last_run_rows.toLocaleString() : '-'))
-        )
-    );
+                React.createElement('span', { className:'mono', style:{fontSize:11,fontWeight:600,color:tc,letterSpacing:1,textTransform:'uppercase'} }, tier),
+                React.createElement('div', { className:'mono', style:{fontSize:14,fontWeight:600,marginTop:4} }, p.pipeline_name)),
+            React.createElement(Badge, { status:st })),
+        p.error_message && React.createElement('div', { className:'mono', style:{fontSize:11,color:'var(--accent-red)',marginTop:8,lineHeight:1.4,background:'var(--accent-red-dim)',padding:'6px 8px',borderRadius:6,maxHeight:60,overflow:'hidden'} }, p.error_message),
+        React.createElement('div', { style:{display:'flex',gap:16,marginTop:10,fontSize:12,color:'var(--text-secondary)'} },
+            React.createElement('span', null, 'Duration: ', React.createElement('span', {className:'mono'}, p.duration_seconds?`${p.duration_seconds}s`:'-')),
+            React.createElement('span', null, 'Rows: ', React.createElement('span', {className:'mono'}, p.last_run_rows?p.last_run_rows.toLocaleString():'-'))));
 }
 
-// ─── DAG Visualization ───
-function PipelineDAG({ pipelines }) {
-    const dag = {
-        source: pipelines.filter(p => p.pipeline_name.startsWith('raw')),
-        staging: pipelines.filter(p => p.pipeline_name.startsWith('stg')),
-        marts: pipelines.filter(p => p.pipeline_name.startsWith('mart')),
-    };
-
-    function NodeBox({ name, status }) {
-        const healthStatus = status === 'failed' ? 'FAILED' : status === 'running' ? 'RUNNING' : 'HEALTHY';
-        const color = healthStatus === 'FAILED' ? 'var(--accent-red)' : healthStatus === 'RUNNING' ? 'var(--accent-blue)' : 'var(--accent-green)';
-        return React.createElement('div', {
-            style: {
-                background: 'var(--bg-card)', border: `1px solid ${color}`,
-                borderRadius: 6, padding: '6px 12px', fontSize: 11, fontFamily: "'JetBrains Mono', monospace",
-                fontWeight: 500, color: color, textAlign: 'center', minWidth: 120,
-                boxShadow: `0 0 8px ${color}22`,
-            }
-        }, name.replace('raw_', '').replace('stg_', '').replace('mart_', ''));
+function DAG({ pipelines }) {
+    const d = { s:pipelines.filter(p=>p.pipeline_name.startsWith('raw')), t:pipelines.filter(p=>p.pipeline_name.startsWith('stg')), m:pipelines.filter(p=>p.pipeline_name.startsWith('mart')) };
+    function N({name,status}) {
+        const c = status==='failed'?'var(--accent-red)':status==='running'?'var(--accent-blue)':'var(--accent-green)';
+        return React.createElement('div', { style:{background:'var(--bg-card)',border:`1px solid ${c}`,borderRadius:6,padding:'6px 12px',fontSize:11,fontFamily:"'JetBrains Mono',monospace",fontWeight:500,color:c,textAlign:'center',minWidth:120,boxShadow:`0 0 8px ${c}22`} },
+            name.replace('raw_','').replace('stg_','').replace('mart_',''));
     }
-
-    function Arrow() {
-        return React.createElement('div', {
-            style: { color: 'var(--text-muted)', fontSize: 18, margin: '0 8px' }
-        }, '\u2192');
-    }
-
-    return React.createElement('div', {
-        style: { background: 'var(--bg-card)', borderRadius: 10, border: '1px solid var(--border)', padding: 20 }
-    },
-        React.createElement('div', { style: { fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 16, letterSpacing: 0.5, textTransform: 'uppercase' } }, 'Pipeline DAG'),
-        React.createElement('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, flexWrap: 'wrap' } },
-            React.createElement('div', { style: { textAlign: 'center' } },
-                React.createElement('div', { style: { fontSize: 10, color: 'var(--accent-blue)', fontWeight: 600, marginBottom: 8, letterSpacing: 1 } }, 'SOURCE'),
-                React.createElement('div', { style: { display: 'flex', flexDirection: 'column', gap: 6 } },
-                    ...dag.source.map(p => React.createElement(NodeBox, { key: p.pipeline_name, name: p.pipeline_name, status: p.last_run_status }))
-                )
-            ),
-            React.createElement(Arrow),
-            React.createElement('div', { style: { textAlign: 'center' } },
-                React.createElement('div', { style: { fontSize: 10, color: 'var(--accent-purple)', fontWeight: 600, marginBottom: 8, letterSpacing: 1 } }, 'STAGING'),
-                React.createElement('div', { style: { display: 'flex', flexDirection: 'column', gap: 6 } },
-                    ...dag.staging.map(p => React.createElement(NodeBox, { key: p.pipeline_name, name: p.pipeline_name, status: p.last_run_status }))
-                )
-            ),
-            React.createElement(Arrow),
-            React.createElement('div', { style: { textAlign: 'center' } },
-                React.createElement('div', { style: { fontSize: 10, color: 'var(--accent-green)', fontWeight: 600, marginBottom: 8, letterSpacing: 1 } }, 'MARTS'),
-                React.createElement('div', { style: { display: 'flex', flexDirection: 'column', gap: 6 } },
-                    ...dag.marts.map(p => React.createElement(NodeBox, { key: p.pipeline_name, name: p.pipeline_name, status: p.last_run_status }))
-                )
-            ),
-        )
-    );
+    const A = () => React.createElement('div', { style:{color:'var(--text-muted)',fontSize:18,margin:'0 8px'} }, '\u2192');
+    return React.createElement('div', { style:{background:'var(--bg-card)',borderRadius:10,border:'1px solid var(--border)',padding:20} },
+        React.createElement('div', { style:{fontSize:13,fontWeight:600,color:'var(--text-secondary)',marginBottom:16,letterSpacing:0.5,textTransform:'uppercase'} }, 'Pipeline DAG'),
+        React.createElement('div', { style:{display:'flex',alignItems:'center',justifyContent:'center',gap:12,flexWrap:'wrap'} },
+            React.createElement('div', { style:{textAlign:'center'} },
+                React.createElement('div', { style:{fontSize:10,color:'var(--accent-blue)',fontWeight:600,marginBottom:8,letterSpacing:1} }, 'SOURCE'),
+                React.createElement('div', { style:{display:'flex',flexDirection:'column',gap:6} }, ...d.s.map(p=>React.createElement(N, {key:p.pipeline_name,name:p.pipeline_name,status:p.last_run_status})))),
+            React.createElement(A),
+            React.createElement('div', { style:{textAlign:'center'} },
+                React.createElement('div', { style:{fontSize:10,color:'var(--accent-purple)',fontWeight:600,marginBottom:8,letterSpacing:1} }, 'STAGING'),
+                React.createElement('div', { style:{display:'flex',flexDirection:'column',gap:6} }, ...d.t.map(p=>React.createElement(N, {key:p.pipeline_name,name:p.pipeline_name,status:p.last_run_status})))),
+            React.createElement(A),
+            React.createElement('div', { style:{textAlign:'center'} },
+                React.createElement('div', { style:{fontSize:10,color:'var(--accent-green)',fontWeight:600,marginBottom:8,letterSpacing:1} }, 'MARTS'),
+                React.createElement('div', { style:{display:'flex',flexDirection:'column',gap:6} }, ...d.m.map(p=>React.createElement(N, {key:p.pipeline_name,name:p.pipeline_name,status:p.last_run_status}))))));
 }
 
-// ─── Agent Activity Feed ───
-function ActivityFeed({ actions }) {
-    const agentColors = {
-        monitor: 'var(--accent-blue)',
-        diagnostics: 'var(--accent-purple)',
-        repair: 'var(--accent-green)',
-        orchestrator: 'var(--accent-yellow)',
-    };
-
-    return React.createElement('div', {
-        style: { background: 'var(--bg-card)', borderRadius: 10, border: '1px solid var(--border)', padding: 20, maxHeight: 400, overflowY: 'auto' }
-    },
-        React.createElement('div', { style: { fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 16, letterSpacing: 0.5, textTransform: 'uppercase' } }, 'Agent Activity'),
+function Activity({ actions }) {
+    const colors = { monitor:'var(--accent-blue)', diagnostics:'var(--accent-purple)', repair:'var(--accent-green)', orchestrator:'var(--accent-yellow)', verification:'var(--accent-blue)' };
+    return React.createElement('div', { style:{background:'var(--bg-card)',borderRadius:10,border:'1px solid var(--border)',padding:20,maxHeight:400,overflowY:'auto'} },
+        React.createElement('div', { style:{fontSize:13,fontWeight:600,color:'var(--text-secondary)',marginBottom:16,letterSpacing:0.5,textTransform:'uppercase'} }, 'Agent Activity'),
         actions.length === 0
-            ? React.createElement('div', { style: { color: 'var(--text-muted)', fontSize: 13, textAlign: 'center', padding: 20 } }, 'No agent actions recorded yet. Run a health check to start.')
-            : actions.map((action, i) =>
-                React.createElement('div', {
-                    key: action.action_id || i,
-                    style: {
-                        borderLeft: `3px solid ${agentColors[action.agent_name] || 'var(--text-muted)'}`,
-                        paddingLeft: 14, marginBottom: 14, animation: `slideIn 0.3s ease-out ${i * 0.05}s both`,
-                    }
-                },
-                    React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 } },
-                        React.createElement('span', {
-                            className: 'mono',
-                            style: { fontSize: 11, fontWeight: 600, color: agentColors[action.agent_name] || 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5 }
-                        }, action.agent_name),
-                        React.createElement('span', { style: { fontSize: 10, color: 'var(--text-muted)' } },
-                            action.created_at ? new Date(action.created_at).toLocaleTimeString() : '')
-                    ),
-                    React.createElement('div', { style: { fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 } }, action.action_type),
-                    React.createElement('div', { style: { fontSize: 13, color: 'var(--text-primary)', lineHeight: 1.4 } }, action.summary),
-                    action.confidence_score > 0 && React.createElement('div', {
-                        className: 'mono',
-                        style: { fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }
-                    }, `Confidence: ${(action.confidence_score * 100).toFixed(0)}%`)
-                )
-            )
-    );
+            ? React.createElement('div', { style:{color:'var(--text-muted)',fontSize:13,textAlign:'center',padding:20} }, 'No agent actions recorded yet.')
+            : actions.map((a,i) => React.createElement('div', { key:a.action_id||i, style:{borderLeft:`3px solid ${colors[a.agent_name]||'var(--text-muted)'}`,paddingLeft:14,marginBottom:14,animation:`slideIn 0.3s ease-out ${i*0.05}s both`} },
+                React.createElement('div', { style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4} },
+                    React.createElement('span', { className:'mono', style:{fontSize:11,fontWeight:600,color:colors[a.agent_name]||'var(--text-muted)',textTransform:'uppercase',letterSpacing:0.5} }, a.agent_name),
+                    React.createElement('span', { style:{fontSize:10,color:'var(--text-muted)'} }, a.created_at ? new Date(a.created_at).toLocaleTimeString() : '')),
+                React.createElement('div', { style:{fontSize:11,color:'var(--text-muted)',marginBottom:2} }, a.action_type),
+                React.createElement('div', { style:{fontSize:13,color:'var(--text-primary)',lineHeight:1.4} }, a.summary),
+                a.confidence_score > 0 && React.createElement('div', { className:'mono', style:{fontSize:10,color:'var(--text-muted)',marginTop:4} }, `Confidence: ${(a.confidence_score*100).toFixed(0)}%`))));
 }
 
-// ─── Chat Panel ───
-function ChatPanel() {
-    const [messages, setMessages] = useState([]);
-    const [input, setInput] = useState('');
-    const [loading, setLoading] = useState(false);
-    const chatEndRef = useRef(null);
-
-    useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
-
-    const sendMessage = async () => {
-        if (!input.trim() || loading) return;
-        const userMsg = input.trim();
-        setInput('');
-        setMessages(prev => [...prev, { role: 'user', content: userMsg }]);
-        setLoading(true);
-        try {
-            const res = await fetch(`${API_BASE}/chat`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message: userMsg }),
-            });
-            const data = await res.json();
-            setMessages(prev => [...prev, { role: 'agent', content: data.response }]);
-        } catch (err) {
-            setMessages(prev => [...prev, { role: 'agent', content: `Error: ${err.message}` }]);
-        }
-        setLoading(false);
-    };
-
-    return React.createElement('div', {
-        style: { background: 'var(--bg-card)', borderRadius: 10, border: '1px solid var(--border)',
-                 display: 'flex', flexDirection: 'column', height: 400 }
-    },
-        React.createElement('div', { style: { padding: '14px 20px', borderBottom: '1px solid var(--border)', fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', letterSpacing: 0.5, textTransform: 'uppercase' } }, 'Agent Chat'),
-        React.createElement('div', {
-            style: { flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }
-        },
-            messages.length === 0 && React.createElement('div', { style: { color: 'var(--text-muted)', fontSize: 13, textAlign: 'center', marginTop: 40 } },
-                'Ask the orchestrator agent anything about your pipelines.',
-                React.createElement('br'),
-                React.createElement('span', { className: 'mono', style: { fontSize: 11 } }, 'Try: "Run a health check" or "Why did stg_orders fail?"')
-            ),
-            messages.map((msg, i) =>
-                React.createElement('div', {
-                    key: i,
-                    style: {
-                        alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
-                        maxWidth: '85%', padding: '10px 14px', borderRadius: 10,
-                        background: msg.role === 'user' ? 'var(--accent-blue-dim)' : 'var(--bg-secondary)',
-                        border: `1px solid ${msg.role === 'user' ? 'var(--accent-blue)' : 'var(--border)'}`,
-                        fontSize: 13, lineHeight: 1.5, whiteSpace: 'pre-wrap',
-                    }
-                }, msg.content)
-            ),
-            loading && React.createElement('div', {
-                className: 'pulse',
-                style: { alignSelf: 'flex-start', padding: '10px 14px', borderRadius: 10,
-                         background: 'var(--bg-secondary)', border: '1px solid var(--border)',
-                         fontSize: 13, color: 'var(--text-muted)' }
-            }, 'Agent is thinking...'),
-            React.createElement('div', { ref: chatEndRef })
-        ),
-        React.createElement('div', {
-            style: { padding: 12, borderTop: '1px solid var(--border)', display: 'flex', gap: 8 }
-        },
-            React.createElement('input', {
-                value: input,
-                onChange: e => setInput(e.target.value),
-                onKeyDown: e => { if (e.key === 'Enter') sendMessage(); },
-                placeholder: 'Ask about your pipelines...',
-                style: {
-                    flex: 1, background: 'var(--bg-secondary)', border: '1px solid var(--border)',
-                    borderRadius: 8, padding: '10px 14px', color: 'var(--text-primary)',
-                    fontSize: 13, fontFamily: "'Outfit', sans-serif", outline: 'none',
-                },
-            }),
-            React.createElement('button', {
-                onClick: sendMessage,
-                disabled: loading,
-                style: {
-                    background: 'var(--accent-blue)', color: 'white', border: 'none',
-                    borderRadius: 8, padding: '10px 20px', fontSize: 13, fontWeight: 600,
-                    cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.5 : 1,
-                    fontFamily: "'Outfit', sans-serif",
-                }
-            }, loading ? '...' : 'Send')
-        )
-    );
+function Stats({ pipelines }) {
+    const t=pipelines.length, h=pipelines.filter(p=>!p.error_message&&p.last_run_status!=='running').length, f=pipelines.filter(p=>p.error_message||p.last_run_status==='failed').length, r=pipelines.filter(p=>p.last_run_status==='running').length;
+    const S = ({label,value,color}) => React.createElement('div', { style:{background:'var(--bg-card)',borderRadius:10,border:'1px solid var(--border)',padding:'16px 20px',flex:1,minWidth:140} },
+        React.createElement('div', { style:{fontSize:11,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:1,fontWeight:600,marginBottom:6} }, label),
+        React.createElement('div', { className:'mono', style:{fontSize:28,fontWeight:700,color} }, value));
+    return React.createElement('div', { style:{display:'flex',gap:12,flexWrap:'wrap'} },
+        React.createElement(S, {label:'Total Pipelines',value:t,color:'var(--text-primary)'}),
+        React.createElement(S, {label:'Healthy',value:h,color:'var(--accent-green)'}),
+        React.createElement(S, {label:'Failed',value:f,color:'var(--accent-red)'}),
+        React.createElement(S, {label:'Running',value:r,color:'var(--accent-blue)'}));
 }
 
-// ─── Stats Bar ───
-function StatsBar({ pipelines }) {
-    const total = pipelines.length;
-    const healthy = pipelines.filter(p => !p.error_message && p.last_run_status !== 'running').length;
-    const failed = pipelines.filter(p => p.error_message || p.last_run_status === 'failed').length;
-    const running = pipelines.filter(p => p.last_run_status === 'running').length;
-
-    function Stat({ label, value, color }) {
-        return React.createElement('div', {
-            style: { background: 'var(--bg-card)', borderRadius: 10, border: '1px solid var(--border)',
-                     padding: '16px 20px', flex: 1, minWidth: 140 }
-        },
-            React.createElement('div', { style: { fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 600, marginBottom: 6 } }, label),
-            React.createElement('div', { className: 'mono', style: { fontSize: 28, fontWeight: 700, color: color } }, value)
-        );
-    }
-
-    return React.createElement('div', { style: { display: 'flex', gap: 12, flexWrap: 'wrap' } },
-        React.createElement(Stat, { label: 'Total Pipelines', value: total, color: 'var(--text-primary)' }),
-        React.createElement(Stat, { label: 'Healthy', value: healthy, color: 'var(--accent-green)' }),
-        React.createElement(Stat, { label: 'Failed', value: failed, color: 'var(--accent-red)' }),
-        React.createElement(Stat, { label: 'Running', value: running, color: 'var(--accent-blue)' }),
-    );
-}
-
-// ─── Main App ───
 function App() {
     const [pipelines, setPipelines] = useState([]);
     const [actions, setActions] = useState([]);
-    const [selectedPipeline, setSelectedPipeline] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    const [activeTab, setActiveTab] = useState('overview');
+    const [lastRefresh, setLastRefresh] = useState(null);
 
     const fetchData = useCallback(async () => {
         try {
-            const [pRes, aRes] = await Promise.all([
-                fetch(`${API_BASE}/pipelines`),
-                fetch(`${API_BASE}/actions`),
-            ]);
-            const pData = await pRes.json();
-            const aData = await aRes.json();
-            setPipelines(pData.pipelines || []);
-            setActions(aData.actions || []);
+            const [pR, aR] = await Promise.all([fetch(`${API}/pipelines`), fetch(`${API}/actions`)]);
+            const pD = await pR.json(), aD = await aR.json();
+            setPipelines(pD.pipelines || []);
+            setActions(aD.actions || []);
             setError(null);
-        } catch (err) {
-            setError(`Cannot connect to API at ${API_BASE}. Is the server running?`);
-        }
+            setLastRefresh(new Date());
+        } catch(e) { setError('API disconnected'); }
         setLoading(false);
     }, []);
 
-    useEffect(() => { fetchData(); const interval = setInterval(fetchData, 10000); return () => clearInterval(interval); }, [fetchData]);
+    useEffect(() => { fetchData(); const iv = setInterval(fetchData, 5000); return ()=>clearInterval(iv); }, [fetchData]);
 
-    const triggerCheck = async () => {
-        try {
-            await fetch(`${API_BASE}/check`, { method: 'POST' });
-            setTimeout(fetchData, 2000);
-        } catch (err) { console.error(err); }
-    };
+    if (loading) return React.createElement('div', { style:{display:'flex',alignItems:'center',justifyContent:'center',minHeight:'100vh',fontSize:16,color:'var(--text-muted)'} }, 'Connecting to Agentic Pipeline Repair API...');
 
-    if (loading) {
-        return React.createElement('div', {
-            style: { display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', fontSize: 16, color: 'var(--text-muted)' }
-        }, 'Connecting to Agentic Pipeline Repair API...');
-    }
-
-    return React.createElement('div', { style: { maxWidth: 1280, margin: '0 auto', padding: '24px 20px' } },
+    return React.createElement('div', { style:{maxWidth:1280,margin:'0 auto',padding:'24px 20px'} },
         // Header
-        React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 } },
+        React.createElement('div', { style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:28} },
             React.createElement('div', null,
-                React.createElement('h1', { style: { fontSize: 22, fontWeight: 700, letterSpacing: -0.5 } }, 'Agentic Pipeline Repair'),
-                React.createElement('div', { style: { fontSize: 13, color: 'var(--text-muted)', marginTop: 2 } }, 'Multi-agent data pipeline monitoring, diagnosis, and repair')
-            ),
-            React.createElement('div', { style: { display: 'flex', gap: 8, alignItems: 'center' } },
-                error && React.createElement('span', { style: { fontSize: 12, color: 'var(--accent-red)', marginRight: 8 } }, 'API disconnected'),
-                React.createElement('button', {
-                    onClick: fetchData,
-                    style: { background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8,
-                             padding: '8px 16px', color: 'var(--text-primary)', fontSize: 13, cursor: 'pointer',
-                             fontFamily: "'Outfit', sans-serif" }
-                }, 'Refresh'),
-                React.createElement('button', {
-                    onClick: triggerCheck,
-                    style: { background: 'var(--accent-blue)', border: 'none', borderRadius: 8,
-                             padding: '8px 16px', color: 'white', fontSize: 13, fontWeight: 600,
-                             cursor: 'pointer', fontFamily: "'Outfit', sans-serif" }
-                }, 'Run Health Check'),
-            )
-        ),
-
-        // Tabs
-        React.createElement('div', { style: { display: 'flex', gap: 4, marginBottom: 20, borderBottom: '1px solid var(--border)', paddingBottom: 1 } },
-            ['overview', 'chat'].map(tab =>
-                React.createElement('button', {
-                    key: tab,
-                    onClick: () => setActiveTab(tab),
-                    style: {
-                        background: 'none', border: 'none', borderBottom: activeTab === tab ? '2px solid var(--accent-blue)' : '2px solid transparent',
-                        padding: '8px 16px', color: activeTab === tab ? 'var(--text-primary)' : 'var(--text-muted)',
-                        fontSize: 14, fontWeight: 500, cursor: 'pointer', fontFamily: "'Outfit', sans-serif",
-                        textTransform: 'capitalize',
-                    }
-                }, tab)
-            )
-        ),
+                React.createElement('h1', { style:{fontSize:22,fontWeight:700,letterSpacing:-0.5} }, 'Agentic Pipeline Repair'),
+                React.createElement('div', { style:{fontSize:13,color:'var(--text-muted)',marginTop:2} }, 'Multi-agent data pipeline monitoring powered by Amazon Nova 2 Lite')),
+            React.createElement('div', { style:{display:'flex',gap:8,alignItems:'center'} },
+                error && React.createElement('span', { style:{fontSize:12,color:'var(--accent-red)',marginRight:8} }, error),
+                lastRefresh && React.createElement('span', { className:'mono', style:{fontSize:11,color:'var(--text-muted)'} }, `Updated ${lastRefresh.toLocaleTimeString()}`),
+                React.createElement('div', { style:{width:8,height:8,borderRadius:'50%',background:error?'var(--accent-red)':'var(--accent-green)',boxShadow:`0 0 6px ${error?'var(--accent-red)':'var(--accent-green)'}`} }))),
 
         // Content
-        activeTab === 'overview' && React.createElement('div', { className: 'fade-in' },
-            React.createElement(StatsBar, { pipelines }),
-            React.createElement('div', { style: { marginTop: 20 } },
-                React.createElement(PipelineDAG, { pipelines })
-            ),
-            React.createElement('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginTop: 20 } },
+        React.createElement('div', { className:'fade-in' },
+            React.createElement(Stats, { pipelines }),
+            React.createElement('div', { style:{marginTop:20} }, React.createElement(DAG, { pipelines })),
+            React.createElement('div', { style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:20,marginTop:20} },
                 React.createElement('div', null,
-                    React.createElement('div', { style: { fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 12, letterSpacing: 0.5, textTransform: 'uppercase' } }, 'Pipelines'),
-                    React.createElement('div', { style: { display: 'flex', flexDirection: 'column', gap: 8 } },
-                        pipelines.map(p =>
-                            React.createElement(PipelineCard, {
-                                key: p.pipeline_name || p.pipeline_id,
-                                pipeline: p,
-                                onClick: setSelectedPipeline,
-                                isSelected: selectedPipeline?.pipeline_name === p.pipeline_name,
-                            })
-                        )
-                    )
-                ),
-                React.createElement(ActivityFeed, { actions }),
-            )
-        ),
-
-        activeTab === 'chat' && React.createElement('div', { className: 'fade-in' },
-            React.createElement(ChatPanel)
-        ),
-    );
+                    React.createElement('div', { style:{fontSize:13,fontWeight:600,color:'var(--text-secondary)',marginBottom:12,letterSpacing:0.5,textTransform:'uppercase'} }, 'Pipelines'),
+                    React.createElement('div', { style:{display:'flex',flexDirection:'column',gap:8} },
+                        pipelines.map(p => React.createElement(PipelineCard, { key:p.pipeline_name||p.pipeline_id, p })))),
+                React.createElement(Activity, { actions }))));
 }
 
 ReactDOM.render(React.createElement(App), document.getElementById('root'));
