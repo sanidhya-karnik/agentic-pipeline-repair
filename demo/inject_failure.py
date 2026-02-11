@@ -151,11 +151,8 @@ def reset_demo():
         AND status IN ('failed', 'running');
     """)
 
-    # Remove recent quality failures
-    execute_write("""
-        DELETE FROM pipeline_meta.quality_results
-        WHERE checked_at > NOW() - INTERVAL '2 hours' AND status = 'fail';
-    """)
+    # Remove all quality failures
+    execute_write("DELETE FROM pipeline_meta.quality_results WHERE status = 'fail';")
 
     # Clear agent actions
     execute_write("DELETE FROM pipeline_meta.agent_actions;")
