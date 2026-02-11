@@ -39,6 +39,8 @@ A single `check` command triggers a multi-agent workflow that automatically dete
 
 The React dashboard provides real-time visibility into pipeline health with the DAG topology showing color-coded status for each pipeline stage (Source, Staging, Marts). Auto-refreshes every 10 seconds with a manual refresh button.
 
+![Dashboard Snapshot](docs/dashboard-snapshot.png)
+
 ## Agent Tools (16 total)
 
 The agents interact with pipeline infrastructure through these tools:
@@ -187,7 +189,8 @@ agentic-pipeline-repair/
 │   ├── agentic-pipeline-repair.drawio  # Architecture diagram (editable)
 │   ├── agentic-pipeline-repair.png     # Architecture diagram (image)
 │   ├── aws-cloud-architecture.drawio   # AWS deployment diagram (editable)
-│   └── aws-cloud-architecture.png      # AWS deployment diagram (image)
+│   ├── aws-cloud-architecture.png      # AWS deployment diagram (image)
+│   └── dashboard-snapshot.png          # Dashboard UI screenshot
 ├── deploy/
 │   ├── DEPLOY.md             # Cloud deployment guide
 │   ├── setup_aws.sh          # Automated AWS setup script
