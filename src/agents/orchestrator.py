@@ -18,7 +18,9 @@ from src.mcp_server.tools import get_pipeline_status, log_agent_action
 
 
 ORCHESTRATOR_SYSTEM_PROMPT = """You are the Orchestrator for Agentic Pipeline Repair. You coordinate the full
-pipeline incident response workflow with 5 agents:
+pipeline incident response workflow with 5 agents.
+
+IMPORTANT: Do not use emojis in your responses. Use plain text indicators like [PASS], [FAIL], [WARNING], [OK] instead.
 
 AGENTS:
 - Monitor Agent: Detects failures, SLA breaches, schema drift, quality issues
