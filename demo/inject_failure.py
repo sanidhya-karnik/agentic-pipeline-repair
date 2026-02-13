@@ -39,9 +39,9 @@ def inject_schema_drift():
         VALUES (
             (SELECT pipeline_id FROM pipeline_meta.pipelines WHERE pipeline_name = 'stg_orders'),
             'failed',
-            NOW() - INTERVAL '30 minutes',
-            NOW() - INTERVAL '28 minutes',
-            120,
+            NOW() - INTERVAL '1 minute',
+            NOW(),
+            60,
             'Compilation Error in model stg_orders: column "discount_amount" referenced in downstream mart_revenue_daily does not exist in stg_orders output.'
         );
     """)
@@ -53,9 +53,9 @@ def inject_schema_drift():
         VALUES (
             (SELECT pipeline_id FROM pipeline_meta.pipelines WHERE pipeline_name = 'mart_revenue_daily'),
             'failed',
-            NOW() - INTERVAL '25 minutes',
-            NOW() - INTERVAL '24 minutes',
-            60,
+            NOW() - INTERVAL '30 seconds',
+            NOW(),
+            30,
             'Database Error: column "discount_amount" does not exist. Upstream dependency stg_orders may have schema changes.'
         );
     """)
