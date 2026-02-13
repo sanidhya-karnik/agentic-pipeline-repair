@@ -8,7 +8,6 @@ SELECT
     status,
     COALESCE(total_amount, 0) AS total_amount,
     COALESCE(shipping_cost, 0) AS shipping_cost,
-    COALESCE(discount_amount, 0) AS discount_amount,
     payment_method,
     CURRENT_TIMESTAMP AS _loaded_at
 FROM {{ source('raw', 'orders') }}
