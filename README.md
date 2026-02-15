@@ -15,6 +15,8 @@ An autonomous multi-agent system that monitors, diagnoses, and repairs data pipe
 
 **Amazon Nova AI Hackathon 2026 | Category: Agentic AI**
 
+[![Demo Video](https://img.shields.io/badge/Demo-YouTube-red?logo=youtube)](https://youtu.be/o9uNckWIBaA?si=7ObKsOAN2W6WOADd)
+
 ## How It Works
 
 A single `check` command triggers a multi-agent workflow that automatically detects failures, traces root causes through the pipeline DAG, reads actual dbt model SQL, and proposes exact code fixes with human-in-the-loop approval.
